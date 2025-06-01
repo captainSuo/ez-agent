@@ -1,10 +1,7 @@
 [project]
-name = "simple-agent"
+name = "ez-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "基于 openai sdk 的简单 AI Agent 框架"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [
-    "mcp[cli]>=1.9.2",
-    "openai>=1.82.1",
-]
+dependencies = ["mcp[cli]>=1.9.2", "openai>=1.82.1"]

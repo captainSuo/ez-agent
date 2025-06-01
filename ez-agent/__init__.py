@@ -1,4 +1,4 @@
-__author__ = "CaptainSuo"
+__author__ = "captainSuo"
 __version__ = "0.1.0"
 __all__ = [
     "Agent",
