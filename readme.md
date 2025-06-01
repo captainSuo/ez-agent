@@ -7,12 +7,18 @@
 - 支持流式输出
 - 可扩展的工具系统
 
+## 安装:
+
+```bash
+pip install ez_agent
+```
+
 ## 使用方法:
 
 ### 导入并创建 Agent:
 
 ```python
-from simple_agent import Agent
+from ez_agent import Agent
 
 agent = Agent(
     model="gpt-4o",
@@ -62,7 +68,7 @@ agent.run("解释量子力学的基本原理", stream=True)
 
 ```python
 # 通用助手
-from simple_agent import Agent
+from ez_agent import Agent
 
 # 初始化通用助手
 agent = Agent(
@@ -90,7 +96,7 @@ while True:
 #### 使用预设工具:
 
 ```python
-from simple_agent.prefab import python_script_tool
+from ez_agent.prefab import python_script_tool
 ```
 
 ### 自定义函数工具:
@@ -98,7 +104,7 @@ from simple_agent.prefab import python_script_tool
 使用 `@FunctionTool` 装饰器创建自定义工具，会自动根据类型注解和函数注释生成工具。该装饰器不影响原函数，原函数仍可被直接调用。
 
 ```python
-from simple_agent import FunctionTool, Agent
+from ez_agent import FunctionTool, Agent
 
 # 创建自定义工具
 @FunctionTool
@@ -151,7 +157,7 @@ custom_agent = Agent(
 #### 使用 MCP 工具
 
 ```python
-from simple_agent import AsyncAgent
+from ez_agent import AsyncAgent
 agent = AsyncAgent(...) # 创建异步Agent，方法与同步Agent相同
 agent.load_mcp_config("mcp_config.json")
 ```
