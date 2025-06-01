@@ -1,5 +1,11 @@
 # 基于 openai sdk 的简单 AI Agent
 
+<p align="center">
+<a href="https://pypi.org/project/ez-agent/"><img src="https://img.shields.io/pypi/v/ez-agent?color=blue&label=pypi"/></a>
+<a href="https://github.com/captainsuo/ez-agent/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/ez-agent?color=green"/></a>
+<a href="https://github.com/captainsuo/ez-agent"><img src="https://img.shields.io/pypi/pyversions/ez-agent" /></a>
+</p>
+
 ## 主要特性:
 
 - 支持 OpenAI, DeepSeek 等公司的大语言模型
