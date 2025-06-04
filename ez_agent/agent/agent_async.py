@@ -1,5 +1,6 @@
 import logging
 from typing import (
+    Self,
     Any,
     Optional,
     Callable,
@@ -14,10 +15,11 @@ from .mcp_tool import MCPClient
 
 logger = logging.getLogger(__name__)
 
+
 class AsyncAgent:
 
     def __init__(
-        self: "AsyncAgent",
+        self: Self,
         model: str,
         api_key: str,
         base_url: str,
@@ -68,17 +70,17 @@ class AsyncAgent:
         return self._base_url
 
     @property
-    def tools(self: "AsyncAgent") -> list[Tool]:
+    def tools(self) -> list[Tool]:
         return list(self._tools.values()) if self._tools else []
 
     @tools.setter
-    def tools(self: "AsyncAgent", value: Optional[list[Tool]]):
+    def tools(self, value: Optional[list[Tool]]):
         self._tools = {tool.name: tool for tool in value} if value else None
 
-    def get_tool(self: "AsyncAgent", name: str) -> Optional[Tool]:
+    def get_tool(self, name: str) -> Optional[Tool]:
         return self._tools.get(name) if self._tools else None
 
-    async def send_messages(self: "AsyncAgent") -> dict[str, Any]:
+    async def send_messages(self) -> dict[str, Any]:
         response = await self.client.chat.completions.create(  # type: ignore
             model=self.model,
             messages=self.messages,  # type: ignore
@@ -103,7 +105,7 @@ class AsyncAgent:
                 await awaitable
         return result
 
-    async def get_response(self: "AsyncAgent") -> Optional[str]:
+    async def get_response(self) -> Optional[str]:
         response: dict[str, Any] = await self.send_messages()
         tool_calls: Optional[list[dict[str, Any]]] = (
             response.get("tool_calls") if response.get("tool_calls") else None
@@ -114,7 +116,7 @@ class AsyncAgent:
             return await self.get_response()
         return response.get("content")
 
-    async def send_messages_stream(self: "AsyncAgent") -> AsyncGenerator[Any, None]:
+    async def send_messages_stream(self) -> AsyncGenerator[Any, None]:
         response = await self.client.chat.completions.create(  # type: ignore
             model=self.model,
             messages=self.messages,  # type: ignore
@@ -136,7 +138,7 @@ class AsyncAgent:
                 break
             yield chunk
 
-    async def get_response_stream(self: "AsyncAgent") -> Optional[str]:
+    async def get_response_stream(self) -> Optional[str]:
         response = self.send_messages_stream()
         collected_chunks = []
         collected_messages = []
@@ -259,7 +261,7 @@ class AsyncAgent:
                         break
 
     async def run(
-        self: "AsyncAgent",
+        self: Self,
         content: str | list[dict[str, Any]],
         user_name: str | NotGiven = NOT_GIVEN,
         stream: bool = False,
@@ -295,7 +297,7 @@ class AsyncAgent:
         with open(file_path, "r", encoding="utf-8") as f:
             self.messages = json.load(f)
 
-    def copy(self) -> "AsyncAgent":
+    def copy(self) -> Self:
         """深拷贝，用于多线程安全"""
         _agent = AsyncAgent.__new__(self.__class__)
         _agent._tools = self._tools
@@ -320,9 +322,7 @@ class AsyncAgent:
         return _agent
 
     @asynccontextmanager
-    async def safe_modify(
-        self: "AsyncAgent", merge_messages: bool = True
-    ) -> AsyncGenerator["AsyncAgent"]:
+    async def safe_modify(self, merge_messages: bool = True) -> AsyncGenerator[Self]:
         """
         线程安全地更改messages，会在一轮对话结束后再追加更新的消息，并且不会改变其他属性。
         注意：过期的消息仍然会被清理
@@ -339,11 +339,11 @@ class AsyncAgent:
                 added_messages.remove(message)
             self.messages.extend(added_messages)
 
-    def clear_msg(self: "AsyncAgent") -> None:
+    def clear_msg(self) -> None:
         """清空消息，仅保留系统消息"""
         self.messages = [self.messages[0]]
 
-    def clear_msg_by_time(self: "AsyncAgent", expire_time: int) -> None:
+    def clear_msg_by_time(self, expire_time: int) -> None:
         """
         清空消息，仅保留系统消息和最近若干秒内的消息
 

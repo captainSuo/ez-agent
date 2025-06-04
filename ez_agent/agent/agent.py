@@ -1,4 +1,4 @@
-from typing import Any, Generator, Optional, Callable, Coroutine
+from typing import Self, Any, Generator, Optional, Callable, Coroutine
 from copy import deepcopy
 from contextlib import contextmanager
 from openai import OpenAI, NOT_GIVEN, NotGiven
@@ -8,7 +8,7 @@ from .base_tool import Tool
 class Agent:
 
     def __init__(
-        self: "Agent",
+        self: Self,
         model: str,
         api_key: str,
         base_url: str,
@@ -58,17 +58,17 @@ class Agent:
         return self._base_url
 
     @property
-    def tools(self: "Agent") -> list[Tool]:
+    def tools(self) -> list[Tool]:
         return list(self._tools.values()) if self._tools else []
 
     @tools.setter
-    def tools(self: "Agent", value: Optional[list[Tool]]):
+    def tools(self, value: Optional[list[Tool]]):
         self._tools = {tool.name: tool for tool in value} if value else None
 
-    def get_tool(self: "Agent", name: str) -> Optional[Tool]:
+    def get_tool(self, name: str) -> Optional[Tool]:
         return self._tools.get(name) if self._tools else None
 
-    def send_messages(self: "Agent") -> dict[str, Any]:
+    def send_messages(self) -> dict[str, Any]:
         response = self.client.chat.completions.create(  # type: ignore
             model=self.model,
             messages=self.messages,  # type: ignore
@@ -91,7 +91,7 @@ class Agent:
             response_handler(result)
         return result
 
-    def get_response(self: "Agent") -> Optional[str]:
+    def get_response(self) -> Optional[str]:
         response: dict[str, Any] = self.send_messages()
         tool_calls: Optional[list[dict[str, Any]]] = (
             response.get("tool_calls") if response.get("tool_calls") else None
@@ -102,7 +102,7 @@ class Agent:
             return self.get_response()
         return response.get("content")
 
-    def send_messages_stream(self: "Agent") -> Generator[Any, None, None]:
+    def send_messages_stream(self) -> Generator[Any, None, None]:
         response = self.client.chat.completions.create(  # type: ignore
             model=self.model,
             messages=self.messages,  # type: ignore
@@ -124,7 +124,7 @@ class Agent:
                 break
             yield chunk
 
-    def get_response_stream(self: "Agent") -> Optional[str]:
+    def get_response_stream(self) -> Optional[str]:
         response = self.send_messages_stream()
         collected_chunks = []
         collected_messages = []
@@ -250,7 +250,7 @@ class Agent:
                         break
 
     def run(
-        self: "Agent",
+        self,
         content: str | list[dict[str, Any]],
         user_name: str | NotGiven = NOT_GIVEN,
         stream: bool = False,
@@ -286,7 +286,7 @@ class Agent:
         with open(file_path, "r", encoding="utf-8") as f:
             self.messages = json.load(f)
 
-    def copy(self) -> "Agent":
+    def copy(self) -> Self:
         """深拷贝，用于多线程安全"""
         _agent = Agent.__new__(self.__class__)
         _agent._tools = self._tools
@@ -311,14 +311,14 @@ class Agent:
         return _agent
 
     @contextmanager
-    def safe_modify(self: "Agent", merge_messages: bool = True) -> Generator:
+    def safe_modify(self, merge_messages: bool = True) -> Generator:
         """
         线程安全地更改messages，会在一轮对话结束后再追加更新的消息，并且不会改变其他属性。
         注意：过期的消息仍然会被清理
         """
         if self.message_expire_time:
             self.clear_msg_by_time(self.message_expire_time)
-        _agent: "Agent" = self.copy()
+        _agent = self.copy()
         new_msg_index = len(_agent.messages)
         yield _agent
         if merge_messages:
@@ -329,11 +329,11 @@ class Agent:
                 added_messages.remove(message)
             self.messages.extend(added_messages)
 
-    def clear_msg(self: "Agent") -> None:
+    def clear_msg(self) -> None:
         """清空消息，仅保留系统消息"""
         self.messages = [self.messages[0]]
 
-    def clear_msg_by_time(self: "Agent", expire_time: int) -> None:
+    def clear_msg_by_time(self, expire_time: int) -> None:
         """
         清空消息，仅保留系统消息和最近若干秒内的消息
 
