@@ -9,6 +9,7 @@ from mcp.client.sse import sse_client
 
 logger = logging.getLogger(__name__)
 
+
 class MCPClient:
     def __init__(self) -> None:
         self.session: Optional[ClientSession] = None
@@ -166,7 +167,12 @@ class MCPTool(Tool):
         }
 
     def __repr__(self) -> str:
-        return f"MCPTool(name={repr(self.name)}, description={repr(self.description)}, parameters={repr(self.parameters)})"
+        return (
+            f"MCPTool("
+            f"name={self.name!r}, "
+            f"description={self.description!r}, "
+            f"parameters={self.parameters!r})"
+        )
 
     async def __call__(self, *args, **arguments):
         if args:
