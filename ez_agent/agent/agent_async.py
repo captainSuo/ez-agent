@@ -12,6 +12,7 @@ from openai import AsyncOpenAI, NOT_GIVEN, NotGiven
 from .base_tool import Tool
 from .mcp_tool import MCPClient
 
+logger = logging.getLogger(__name__)
 
 class AsyncAgent:
 
@@ -376,7 +377,7 @@ class AsyncAgent:
             return
         for params in config.get("mcpServers").values():  # type: ignore
             await self.connect_to_mcp_server(params)
-        logging.info(f"Loaded MCP config from {config_file}")
+        logger.info(f"Loaded MCP config from {config_file}")
 
     async def cleanup(self) -> None:
         """清理连接，释放资源"""
@@ -385,7 +386,7 @@ class AsyncAgent:
         for mcp_client in self._mcp_clients:
             await mcp_client.cleanup()
         self._mcp_clients.clear()
-        logging.info(f"MCP clients cleaned up")
+        logger.info(f"MCP clients cleaned up")
 
     def add_response_handler(
         self, handler: Callable[[dict[str, Any]], Awaitable | None]

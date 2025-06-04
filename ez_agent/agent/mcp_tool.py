@@ -7,6 +7,7 @@ from mcp import ClientSession, StdioServerParameters, McpError
 from mcp.client.stdio import stdio_client
 from mcp.client.sse import sse_client
 
+logger = logging.getLogger(__name__)
 
 class MCPClient:
     def __init__(self) -> None:
@@ -65,7 +66,7 @@ class MCPClient:
         response = await self.session.list_tools()
         tools = response.tools
         self.tool_list = [tool.name for tool in tools]
-        logging.info(
+        logger.info(
             f"Successfully connected to MCP server with tools: {self.tool_list}"
         )
 
@@ -109,7 +110,7 @@ class MCPClient:
         response = await self.session.list_tools()
         tools = response.tools
         self.tool_list = [tool.name for tool in tools]
-        logging.info(
+        logger.info(
             f"Successfully connected to MCP server with tools: {self.tool_list}"
         )
 
@@ -120,7 +121,7 @@ class MCPClient:
 
     async def reconnect(self):
         """Reconnect to the server"""
-        logging.info(f"Reconnecting to MCP server: {self._server_params}")
+        logger.info(f"Reconnecting to MCP server: {self._server_params}")
         if not self.session:
             raise ValueError("MCPClient not connected yet")
         await self.cleanup()
@@ -129,7 +130,7 @@ class MCPClient:
     async def cleanup(self):
         """Clean up resources"""
         await self.exit_stack.aclose()
-        logging.info("MCPClient cleaned up")
+        logger.info("MCPClient cleaned up")
 
 
 class MCPTool(Tool):
