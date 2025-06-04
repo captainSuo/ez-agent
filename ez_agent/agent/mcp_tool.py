@@ -193,10 +193,10 @@ class MCPTool(Tool):
                     name=self.name, arguments=arguments
                 )
             except McpError as e:
-                logging.exception("MCP request failed after reconnecting")
+                logger.exception("MCP request failed after reconnecting")
                 return f"MCP request failed after reconnecting: {e}"
         except Exception as e:
-            logging.exception(f"Error when calling tool: {e}")
+            logger.exception(f"Error when calling tool: {e}")
             return f"Error when calling tool: {e}"
         return result.content
 
