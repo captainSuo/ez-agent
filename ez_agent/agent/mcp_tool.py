@@ -1,7 +1,7 @@
+from collections.abc import Awaitable
 import logging
 from .base_tool import Tool
 from typing import Any
-from typing import Optional
 from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters, McpError
 from mcp.client.stdio import stdio_client
@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 
 class MCPClient:
     def __init__(self) -> None:
-        self.session: Optional[ClientSession] = None
-        self._server_params: Optional[dict[str, Any]] = None
+        self.session: ClientSession | None = None
+        self._server_params: dict[str, Any] | None = None
         self.exit_stack = AsyncExitStack()
 
-    async def connect_to_server(self, params: Optional[dict[str, Any]]) -> None:
+    async def connect_to_server(self, params: dict[str, Any] | None) -> None:
         if not params:
             return
         if "url" in params:
@@ -74,7 +74,7 @@ class MCPClient:
     async def connect_to_sse_server(
         self,
         url: str,
-        headers: Optional[dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         timeout: float = 5,
         sse_read_timeout: float = 60 * 5,
     ):
@@ -174,7 +174,10 @@ class MCPTool(Tool):
             f"parameters={self.parameters!r})"
         )
 
-    async def __call__(self, *args, **arguments):
+    def __call__(self, *args, **kwargs) -> Awaitable[str]:
+        return self._call(*args, **kwargs)
+
+    async def _call(self, *args, **arguments) -> str:
         if args:
             raise ValueError(
                 "MCPTool does not support positional arguments, try keyword arguments"
@@ -198,7 +201,7 @@ class MCPTool(Tool):
         except Exception as e:
             logger.exception(f"Error when calling tool: {e}")
             return f"Error when calling tool: {e}"
-        return result.content
+        return str(result.content)
 
 
 class FoldableMCPTool(MCPTool):

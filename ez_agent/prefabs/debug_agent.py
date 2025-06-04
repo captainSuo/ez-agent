@@ -1,8 +1,9 @@
 import logging
 from openai import NOT_GIVEN, NotGiven
-from typing import Self, Any, override
+from typing import Self, override
 from ..agent.base_tool import Tool
 from ..agent.agent_async import AsyncAgent
+from ..types import MessageContent
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class DebugAgent(AsyncAgent):
     @override
     async def run(
         self: Self,
-        content: str | list[dict[str, Any]],
+        content: MessageContent,
         user_name: str | NotGiven = NOT_GIVEN,
         stream: bool = False,
     ) -> str | None:

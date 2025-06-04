@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable
 from typing import Any
+from ..types import JSONType
 
 
 class Tool(ABC):
@@ -9,7 +11,7 @@ class Tool(ABC):
     description: str = ""
 
     @abstractmethod
-    def __call__(self, *args, **kwargs) -> Any:
+    def __call__(self, *args, **kwargs) -> str | Awaitable[str]:
         pass
 
     @abstractmethod
@@ -17,5 +19,5 @@ class Tool(ABC):
         pass
 
     @abstractmethod
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> JSONType:
         pass

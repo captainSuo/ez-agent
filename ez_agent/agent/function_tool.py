@@ -1,11 +1,14 @@
+from unittest.mock import Base
 from .base_tool import Tool
-from typing import Any, Callable, Coroutine
+from abc import ABC
+from typing import Any
+from collections.abc import Callable, Awaitable
 import inspect
 
 
-class FunctionTool(Tool):
+class BaseFunctionTool(Tool, ABC):
 
-    def __init__(self, func: Callable):
+    def __init__(self, func: Callable[..., str | Awaitable[str]]) -> None:
         if isinstance(func, classmethod):
             raise TypeError(
                 "FunctionTool cannot be used as a class method, please use @staticmethod to decorate the function."
@@ -84,7 +87,6 @@ class FunctionTool(Tool):
             parameters["required"] = required
 
         self.parameters = parameters
-        self._func = func
         self.description: str = func.__doc__.strip() if func.__doc__ else ""
         self.name = func.__name__
         self.__annotations__ = func.__annotations__
@@ -94,7 +96,13 @@ class FunctionTool(Tool):
         self.__name__ = func.__name__
         self.__qualname__ = func.__qualname__
 
-    def __call__(self, *args, **kwds):
+
+class FunctionTool(BaseFunctionTool):
+    def __init__(self, func: Callable[..., str]) -> None:
+        super().__init__(func)
+        self._func: Callable[..., str] = func
+
+    def __call__(self, *args, **kwds) -> str:
         return self._func(*args, **kwds)
 
     def __get__(self, obj, objtype):
@@ -136,14 +144,15 @@ class FoldableFunctionTool(FunctionTool):
         )
 
 
-class AsyncFunctionTool(FunctionTool):
-    def __init__(self, func: Callable[..., Coroutine]):
+class AsyncFunctionTool(BaseFunctionTool):
+    def __init__(self, func: Callable[..., Awaitable[str]]):
         super().__init__(func)
+        self._func: Callable[..., Awaitable[str]] = func
 
-    async def async_call(self, *args, **kwargs):
-        return await self._func(*args, **kwargs)
+    def __call__(self, *args, **kwargs) -> Awaitable[str]:
+        return self._func(*args, **kwargs)
 
 
 class FoldableAsyncFunctionTool(FoldableFunctionTool, AsyncFunctionTool):
-    def __init__(self, func: Callable[..., Coroutine]):
+    def __init__(self, func: Callable[..., Awaitable[str]]):
         super().__init__(func)

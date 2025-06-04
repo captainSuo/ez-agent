@@ -1,4 +1,5 @@
-from typing import Self, Any, Generator, Optional, Callable, Coroutine
+from typing import Self, Any
+from collections.abc import Callable, Coroutine, Generator
 from copy import deepcopy
 from contextlib import contextmanager
 from openai import OpenAI, NOT_GIVEN, NotGiven
@@ -13,15 +14,15 @@ class Agent:
         api_key: str,
         base_url: str,
         instructions: str = "",
-        tools: Optional[list[Tool]] = None,
-        frequency_penalty: Optional[float] | NotGiven = NOT_GIVEN,
-        temperature: Optional[float] | NotGiven = NOT_GIVEN,
-        top_p: Optional[float] | NotGiven = NOT_GIVEN,
-        max_tokens: Optional[int] | NotGiven = NOT_GIVEN,
-        max_completion_tokens: Optional[int] | NotGiven = NOT_GIVEN,
-        message_expire_time: Optional[int] = None,
+        tools: list[Tool] | None = None,
+        frequency_penalty: float | None | NotGiven = NOT_GIVEN,
+        temperature: float | None | NotGiven = NOT_GIVEN,
+        top_p: float | None | NotGiven = NOT_GIVEN,
+        max_tokens: int | None | NotGiven = NOT_GIVEN,
+        max_completion_tokens: int | None | NotGiven = NOT_GIVEN,
+        message_expire_time: int | None = None,
     ) -> None:
-        self._tools: Optional[dict[str, Tool]] = (
+        self._tools: dict[str, Tool] | None = (
             {tool.name: tool for tool in tools} if tools else None
         )
         self._client: OpenAI = OpenAI(api_key=api_key, base_url=base_url)
@@ -37,13 +38,13 @@ class Agent:
         self.stream_chunk_handlers: list[Callable[[str], None]] = []
         self.tool_call_handlers: list[Callable[[dict[str, Any]], None]] = []
 
-        self.frequency_penalty: Optional[float] | NotGiven = frequency_penalty
-        self.temperature: Optional[float] | NotGiven = temperature
-        self.top_p: Optional[float] | NotGiven = top_p
-        self.max_tokens: Optional[int] | NotGiven = max_tokens
-        self.max_completion_tokens: Optional[int] | NotGiven = max_completion_tokens
+        self.frequency_penalty: float | None | NotGiven = frequency_penalty
+        self.temperature: float | None | NotGiven = temperature
+        self.top_p: float | None | NotGiven = top_p
+        self.max_tokens: int | None | NotGiven = max_tokens
+        self.max_completion_tokens: int | None | NotGiven = max_completion_tokens
 
-        self.message_expire_time: Optional[int] = message_expire_time
+        self.message_expire_time: int | None = message_expire_time
 
     @property
     def client(self) -> OpenAI:
@@ -62,10 +63,10 @@ class Agent:
         return list(self._tools.values()) if self._tools else []
 
     @tools.setter
-    def tools(self, value: Optional[list[Tool]]):
+    def tools(self, value: list[Tool] | None):
         self._tools = {tool.name: tool for tool in value} if value else None
 
-    def get_tool(self, name: str) -> Optional[Tool]:
+    def get_tool(self, name: str) -> Tool | None:
         return self._tools.get(name) if self._tools else None
 
     def send_messages(self) -> dict[str, Any]:
@@ -91,9 +92,9 @@ class Agent:
             response_handler(result)
         return result
 
-    def get_response(self) -> Optional[str]:
+    def get_response(self) -> str | None:
         response: dict[str, Any] = self.send_messages()
-        tool_calls: Optional[list[dict[str, Any]]] = (
+        tool_calls: list[dict[str, Any]] | None = (
             response.get("tool_calls") if response.get("tool_calls") else None
         )
         self.messages.append(response)
@@ -124,7 +125,7 @@ class Agent:
                 break
             yield chunk
 
-    def get_response_stream(self) -> Optional[str]:
+    def get_response_stream(self) -> str | None:
         response = self.send_messages_stream()
         collected_chunks = []
         collected_messages = []
@@ -254,7 +255,7 @@ class Agent:
         content: str | list[dict[str, Any]],
         user_name: str | NotGiven = NOT_GIVEN,
         stream: bool = False,
-    ) -> Optional[str]:
+    ) -> str | None:
         if self.message_expire_time:
             self.clear_msg_by_time(self.message_expire_time)
         self._fold_previous_tool_results()
