@@ -325,7 +325,7 @@ class Agent:
         _agent: Self = self.copy()
         yield _agent
         if merge_messages:
-            added_messages: list[Any] = _agent.messages
+            added_messages: list[MessageParam] = _agent.messages
             for message in self.messages:
                 if not message in added_messages:
                     break

@@ -9,11 +9,11 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from .base_tool import Tool
 from .mcp_tool import MCPClient
 from ..types import (
+    JSONType,
     AssistantMessageParam,
     MessageContent,
     MessageParam,
     ToolCallParam,
-    JSONType,
     UserMessageParam,
 )
 
@@ -343,7 +343,7 @@ class AsyncAgent:
         _agent: "AsyncAgent" = self.copy()
         yield _agent
         if merge_messages:
-            added_messages: list[Any] = _agent.messages
+            added_messages: list[MessageParam] = _agent.messages
             for message in self.messages:
                 if not message in added_messages:
                     break
