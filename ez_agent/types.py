@@ -1,5 +1,5 @@
 from collections.abc import Mapping, Iterable
-from typing import TypeAlias, TypedDict, NotRequired
+from typing import TypeAlias, NotRequired
 from openai.types.chat import (
     ChatCompletionDeveloperMessageParam,
     ChatCompletionSystemMessageParam,
@@ -17,33 +17,28 @@ JSONType: TypeAlias = (
 )
 
 
-class TimedMessage(TypedDict):
-
+class DeveloperMessageParam(ChatCompletionDeveloperMessageParam):
     time: NotRequired[int]
 
 
-class DeveloperMessageParam(TimedMessage, ChatCompletionDeveloperMessageParam):
-    pass
+class SystemMessageParam(ChatCompletionSystemMessageParam):
+    time: NotRequired[int]
 
 
-class SystemMessageParam(TimedMessage, ChatCompletionSystemMessageParam):
-    pass
+class UserMessageParam(ChatCompletionUserMessageParam):
+    time: NotRequired[int]
 
 
-class UserMessageParam(TimedMessage, ChatCompletionUserMessageParam):
-    pass
+class AssistantMessageParam(ChatCompletionAssistantMessageParam):
+    time: NotRequired[int]
 
 
-class AssistantMessageParam(TimedMessage, ChatCompletionAssistantMessageParam):
-    pass
+class ToolMessageParam(ChatCompletionToolMessageParam):
+    time: NotRequired[int]
 
 
-class ToolMessageParam(TimedMessage, ChatCompletionToolMessageParam):
-    pass
-
-
-class FunctionMessageParam(TimedMessage, ChatCompletionFunctionMessageParam):
-    pass
+class FunctionMessageParam(ChatCompletionFunctionMessageParam):
+    time: NotRequired[int]
 
 
 MessageParam: TypeAlias = (
