@@ -97,6 +97,19 @@ class BaseFunctionTool(Tool, ABC):
         self.__name__ = func.__name__
         self.__qualname__ = func.__qualname__
 
+    def __repr__(self) -> str:
+        return f"FunctionTool(name={self.name}, description={self.description}, parameters={self.parameters})"
+
+    def to_dict(self) -> ChatCompletionToolParam:
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters,
+            },
+        }
+
 
 class FunctionTool(BaseFunctionTool):
     def __init__(self, func: Callable[..., str]) -> None:
@@ -119,19 +132,6 @@ class FunctionTool(BaseFunctionTool):
         tool.parameters["required"] = self.parameters["required"][1:]  # type: ignore
         tool.description = self.description
         return tool
-
-    def __repr__(self) -> str:
-        return f"FunctionTool(name={self.name}, description={self.description}, parameters={self.parameters})"
-
-    def to_dict(self) -> ChatCompletionToolParam:
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.parameters,
-            },
-        }
 
 
 class FoldableFunctionTool(FunctionTool):
