@@ -119,9 +119,9 @@ class FunctionTool(BaseFunctionTool):
     def __call__(self, *args, **kwds) -> str:
         return self._func(*args, **kwds)
 
-    def __get__(self, obj, objtype):
+    def __get__(self, obj, objtype) -> "FunctionTool":
         @FunctionTool
-        def tool(*args, **kwds):
+        def tool(*args, **kwds) -> str:
             return self._func(obj, *args, **kwds)
 
         tool.name = self.name
@@ -152,6 +152,20 @@ class AsyncFunctionTool(BaseFunctionTool):
 
     def __call__(self, *args, **kwargs) -> Awaitable[str]:
         return self._func(*args, **kwargs)
+
+    def __get__(self, obj, objtype) -> "AsyncFunctionTool":
+        @AsyncFunctionTool
+        async def tool(*args, **kwds) -> str:
+            return await self._func(obj, *args, **kwds)
+
+        tool.name = self.name
+        tool.parameters = self.parameters
+        tool.parameters["properties"] = dict(
+            list(self.parameters["properties"].items())[1:]  # type: ignore
+        )
+        tool.parameters["required"] = self.parameters["required"][1:]  # type: ignore
+        tool.description = self.description
+        return tool
 
 
 class FoldableAsyncFunctionTool(AsyncFunctionTool):
