@@ -3,7 +3,7 @@ from typing import Self, Any, cast
 from collections.abc import Callable, Generator
 from copy import deepcopy
 from contextlib import contextmanager
-from openai import OpenAI, NOT_GIVEN, NotGiven
+from openai import OpenAI, NOT_GIVEN, NotGiven, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from ez_agent.types import (
@@ -118,10 +118,10 @@ class Agent:
         return response.get("content")  # type: ignore
 
     def send_messages_stream(self) -> Generator[ChatCompletionChunk, None, None]:
-        response = self.client.chat.completions.create(  # type: ignore
+        response: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
             model=self.model,
-            messages=self.messages,  # type: ignore
-            tools=(  # type: ignore
+            messages=self.messages,
+            tools=(
                 [tool.to_dict() for tool in self._tools.values()]
                 if self._tools
                 else NOT_GIVEN

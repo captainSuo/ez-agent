@@ -130,21 +130,23 @@ class AsyncAgent:
         return response.get("content")  # type: ignore
 
     async def send_messages_stream(self) -> AsyncGenerator[Any, None]:
-        response: AsyncStream[ChatCompletionChunk] = await self.client.chat.completions.create(  # type: ignore
-            model=self.model,
-            messages=self.messages,  # type: ignore
-            tools=(  # type: ignore
-                [tool.to_dict() for tool in self._tools.values()]
-                if self._tools
-                else NOT_GIVEN
-            ),
-            tool_choice="auto" if self._tools else "none",
-            frequency_penalty=self.frequency_penalty,
-            max_tokens=self.max_tokens,
-            max_completion_tokens=self.max_completion_tokens,
-            temperature=self.temperature,
-            top_p=self.top_p,
-            stream=True,
+        response: AsyncStream[ChatCompletionChunk] = (
+            await self.client.chat.completions.create(
+                model=self.model,
+                messages=self.messages,
+                tools=(
+                    [tool.to_dict() for tool in self._tools.values()]
+                    if self._tools
+                    else NOT_GIVEN
+                ),
+                tool_choice="auto" if self._tools else "none",
+                frequency_penalty=self.frequency_penalty,
+                max_tokens=self.max_tokens,
+                max_completion_tokens=self.max_completion_tokens,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                stream=True,
+            )
         )
         async for chunk in response:
             if chunk.choices[0].finish_reason == "stop":
@@ -205,7 +207,7 @@ class AsyncAgent:
         for tool_call in tool_calls_by_id.values():
             tool_calls.append(tool_call)
 
-        full_content = "".join(collected_messages)
+        full_content: str = "".join(collected_messages)
         message: AssistantMessageParam = {
             "role": "assistant",
             "content": full_content,
