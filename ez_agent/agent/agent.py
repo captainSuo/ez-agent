@@ -1,5 +1,5 @@
 import time
-from typing import Self, Any, cast
+from typing import Self, cast
 from collections.abc import Callable, Generator
 from copy import deepcopy
 from contextlib import contextmanager

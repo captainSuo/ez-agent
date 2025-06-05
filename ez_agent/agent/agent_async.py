@@ -1,11 +1,12 @@
 import logging, time
-from typing import Self, Any, cast
+from typing import Self, cast
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from copy import deepcopy
 from contextlib import asynccontextmanager
 from openai import AsyncOpenAI, NOT_GIVEN, AsyncStream, NotGiven
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from openai.types.chat.chat_completion_message_tool_call_param import Function
 from .base_tool import Tool
 from .mcp_tool import MCPClient
 from ..types import (
@@ -129,7 +130,7 @@ class AsyncAgent:
             return await self.get_response()
         return response.get("content")  # type: ignore
 
-    async def send_messages_stream(self) -> AsyncGenerator[Any, None]:
+    async def send_messages_stream(self) -> AsyncGenerator[ChatCompletionChunk, None]:
         response: AsyncStream[ChatCompletionChunk] = (
             await self.client.chat.completions.create(
                 model=self.model,
@@ -154,7 +155,9 @@ class AsyncAgent:
             yield chunk
 
     async def get_response_stream(self) -> MessageContent | None:
-        response: AsyncGenerator[Any, None] = self.send_messages_stream()
+        response: AsyncGenerator[ChatCompletionChunk, None] = (
+            self.send_messages_stream()
+        )
         collected_chunks: list[ChatCompletionChunk] = []
         collected_messages: list[str] = []
         tool_calls_by_id: dict[int, ToolCallParam] = {}
@@ -186,7 +189,9 @@ class AsyncAgent:
                     # 更新工具调用信息
                     current_tool = tool_calls_by_id[call_id]
                     if hasattr(tool_call, "function"):
-                        function_data = current_tool["function"]
+                        if not tool_call.function:
+                            continue
+                        function_data: Function = current_tool["function"]
                         if (
                             hasattr(tool_call.function, "name")
                             and tool_call.function.name
