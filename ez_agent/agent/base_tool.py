@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable
-from typing import Any
 from openai.types import FunctionParameters
 from openai.types.chat import ChatCompletionToolParam
 

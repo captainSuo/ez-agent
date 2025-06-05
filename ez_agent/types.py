@@ -1,7 +1,6 @@
 from collections.abc import Mapping, Iterable
-from typing import Literal, TypeAlias, TypedDict, NotRequired
+from typing import TypeAlias, TypedDict, NotRequired
 from openai.types.chat import (
-    ChatCompletionMessageParam,
     ChatCompletionDeveloperMessageParam,
     ChatCompletionSystemMessageParam,
     ChatCompletionUserMessageParam,

@@ -2,7 +2,7 @@ from .base_tool import Tool
 from abc import ABC
 from typing import Any
 from collections.abc import Callable, Awaitable
-from openai.types import FunctionDefinition, FunctionParameters
+from openai.types import FunctionParameters
 from openai.types.chat import ChatCompletionToolParam
 import inspect
 
@@ -137,7 +137,7 @@ class FunctionTool(BaseFunctionTool):
 class FoldableFunctionTool(FunctionTool):
     foldable = True
 
-    def __init__(self, func: Callable):
+    def __init__(self, func: Callable[..., str]):
         super().__init__(func)
         self.description += (
             "This tool is foldable, which means the result of this tool "
@@ -154,6 +154,12 @@ class AsyncFunctionTool(BaseFunctionTool):
         return self._func(*args, **kwargs)
 
 
-class FoldableAsyncFunctionTool(FoldableFunctionTool, AsyncFunctionTool):
+class FoldableAsyncFunctionTool(AsyncFunctionTool):
+    foldable = True
+
     def __init__(self, func: Callable[..., Awaitable[str]]):
         super().__init__(func)
+        self.description += (
+            "This tool is foldable, which means the result of this tool "
+            "will be hidden when a new round of conversation starts."
+        )

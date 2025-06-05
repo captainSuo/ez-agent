@@ -1,10 +1,10 @@
-from asyncio import AbstractEventLoop
+import time
 from typing import Self, Any, cast
-from collections.abc import Callable, Coroutine, Generator
+from collections.abc import Callable, Generator
 from copy import deepcopy
 from contextlib import contextmanager
 from openai import OpenAI, NOT_GIVEN, NotGiven
-from openai.types.chat.chat_completion import ChatCompletion
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
 from ez_agent.types import (
     AssistantMessageParam,
@@ -117,7 +117,7 @@ class Agent:
             return self.get_response()
         return response.get("content")  # type: ignore
 
-    def send_messages_stream(self) -> Generator[Any, None, None]:
+    def send_messages_stream(self) -> Generator[ChatCompletionChunk, None, None]:
         response = self.client.chat.completions.create(  # type: ignore
             model=self.model,
             messages=self.messages,  # type: ignore
@@ -141,8 +141,8 @@ class Agent:
 
     def get_response_stream(self) -> MessageContent | None:
         response = self.send_messages_stream()
-        collected_chunks = []
-        collected_messages = []
+        collected_chunks: list[ChatCompletionChunk] = []
+        collected_messages: list[str] = []
         tool_calls_by_id: dict[int, ToolCallParam] = {}
 
         for chunk in response:
@@ -170,6 +170,8 @@ class Agent:
                     # 更新工具调用信息
                     current_tool = tool_calls_by_id[call_id]
                     if hasattr(tool_call, "function"):
+                        if not tool_call.function:
+                            continue
                         function_data = current_tool["function"]
                         if (
                             hasattr(tool_call.function, "name")
@@ -212,26 +214,13 @@ class Agent:
 
     def call_tool(self, tool_calls: list[ToolCallParam]) -> None:
         # 因为模型会输出 ture/false 而不是 True/False，所以需要转换
-        true: bool = True
-        false: bool = False
+        true: bool = True  # type: ignore
+        false: bool = False  # type: ignore
         if not self._tools:
             return
         for tool_call in tool_calls:
             called_tool = self._tools[tool_call["function"]["name"]]
             result = str(called_tool(**eval(tool_call["function"]["arguments"])))
-            if isinstance(result, Coroutine):
-                try:
-                    import asyncio
-
-                    asyncio.run(result)
-
-                except RuntimeError:
-                    import asyncio
-
-                    loop: AbstractEventLoop = asyncio.get_running_loop()
-                    result = loop.run_until_complete(result)
-
-            import time
 
             self.messages.append(
                 {
@@ -326,15 +315,14 @@ class Agent:
         return _agent
 
     @contextmanager
-    def safe_modify(self, merge_messages: bool = True) -> Generator:
+    def safe_modify(self, merge_messages: bool = True) -> Generator[Self, None, None]:
         """
         线程安全地更改messages，会在一轮对话结束后再追加更新的消息，并且不会改变其他属性。
         注意：过期的消息仍然会被清理
         """
         if self.message_expire_time:
             self.clear_msg_by_time(self.message_expire_time)
-        _agent = self.copy()
-        new_msg_index = len(_agent.messages)
+        _agent: Self = self.copy()
         yield _agent
         if merge_messages:
             added_messages: list[Any] = _agent.messages

@@ -1,4 +1,4 @@
-import logging
+import logging, time
 from typing import Self, Any, cast
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from copy import deepcopy
@@ -152,8 +152,8 @@ class AsyncAgent:
 
     async def get_response_stream(self) -> MessageContent | None:
         response: AsyncGenerator[Any, None] = self.send_messages_stream()
-        collected_chunks = []
-        collected_messages = []
+        collected_chunks: list[ChatCompletionChunk] = []
+        collected_messages: list[str] = []
         tool_calls_by_id: dict[int, ToolCallParam] = {}
 
         async for chunk in response:
@@ -229,8 +229,8 @@ class AsyncAgent:
         # 记录时间
         time: int | None = self.messages[-1].get("time")
         # 因为模型会输出 ture/false 而不是 True/False，所以需要转换
-        true: bool = True
-        false: bool = False
+        true: bool = True  # type: ignore
+        false: bool = False  # type: ignore
         if not self._tools:
             return
         for tool_call in tool_calls:
@@ -281,7 +281,6 @@ class AsyncAgent:
         if self.message_expire_time:
             self.clear_msg_by_time(self.message_expire_time)
         self._fold_previous_tool_results()
-        import time
 
         user_message: UserMessageParam = {
             "role": "user",
@@ -367,7 +366,7 @@ class AsyncAgent:
             if int(time.time()) - message.get("time", 0) > expire_time:
                 self.messages.remove(message)
 
-    async def connect_to_mcp_server(self, params: dict[str, Any]) -> None:
+    async def connect_to_mcp_server(self, params: dict[str, JSONType]) -> None:
         """连接到MCP服务器"""
         mcp_client = MCPClient()
         self._mcp_clients.append(mcp_client)
