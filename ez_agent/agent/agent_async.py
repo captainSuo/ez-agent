@@ -1,12 +1,21 @@
 import logging
-from typing import Self, Any
+from typing import Self, Any, cast
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from copy import deepcopy
 from contextlib import asynccontextmanager
-from openai import AsyncOpenAI, NOT_GIVEN, NotGiven
+from openai import AsyncOpenAI, NOT_GIVEN, AsyncStream, NotGiven
+from openai.types.chat.chat_completion import ChatCompletion
+from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from .base_tool import Tool
 from .mcp_tool import MCPClient
-from ..types import MessageContent, Message, ToolCall, JSONType
+from ..types import (
+    AssistantMessageParam,
+    MessageContent,
+    MessageParam,
+    ToolCallParam,
+    JSONType,
+    UserMessageParam,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +45,16 @@ class AsyncAgent:
 
         self.model: str = model
         self.instructions: str = instructions
-        self.messages: list[Message] = [{"role": "system", "content": instructions}]
-        self.response_handlers: list[Callable[[Message], Awaitable[None] | None]] = []
+        self.messages: list[MessageParam] = [
+            {"role": "system", "content": instructions}
+        ]
+        self.response_handlers: list[
+            Callable[[AssistantMessageParam], Awaitable[None] | None]
+        ] = []
         self.stream_chunk_handlers: list[Callable[[str], Awaitable[None] | None]] = []
-        self.tool_call_handlers: list[Callable[[ToolCall], Awaitable[None] | None]] = []
+        self.tool_call_handlers: list[
+            Callable[[ToolCallParam], Awaitable[None] | None]
+        ] = []
         self._mcp_clients: list[MCPClient] = []
 
         self.frequency_penalty: float | None | NotGiven = frequency_penalty
@@ -73,11 +88,11 @@ class AsyncAgent:
     def get_tool(self, name: str) -> Tool | None:
         return self._tools.get(name) if self._tools else None
 
-    async def send_messages(self) -> Message:
-        response = await self.client.chat.completions.create(  # type: ignore
+    async def send_messages(self) -> MessageParam:
+        response: ChatCompletion = await self.client.chat.completions.create(
             model=self.model,
-            messages=self.messages,  # type: ignore
-            tools=(  # type: ignore
+            messages=self.messages,
+            tools=(
                 [tool.to_dict() for tool in self._tools.values()]
                 if self._tools
                 else NOT_GIVEN
@@ -90,27 +105,31 @@ class AsyncAgent:
             top_p=self.top_p,
             stream=False,
         )
-        result: Message = response.choices[0].message.to_dict()
+        result: AssistantMessageParam = cast(
+            AssistantMessageParam, response.choices[0].message.to_dict()
+        )
         result["time"] = response.created
         for response_handler in self.response_handlers:
-            awaitable = response_handler(result)
+            awaitable: Awaitable[None] | None = response_handler(result)
             if awaitable:
                 await awaitable
         return result
 
     async def get_response(self) -> MessageContent | None:
-        response: Message = await self.send_messages()
-        tool_calls: list[ToolCall] | None = (
-            response.get("tool_calls") if response.get("tool_calls") else None
+        response: MessageParam = await self.send_messages()
+        tool_calls: list[ToolCallParam] | None = (
+            cast(list[ToolCallParam], response.get("tool_calls"))
+            if response.get("tool_calls")
+            else None
         )
         self.messages.append(response)
         if tool_calls:
             await self.call_tool(tool_calls)
             return await self.get_response()
-        return response.get("content")
+        return response.get("content")  # type: ignore
 
     async def send_messages_stream(self) -> AsyncGenerator[Any, None]:
-        response = await self.client.chat.completions.create(  # type: ignore
+        response: AsyncStream[ChatCompletionChunk] = await self.client.chat.completions.create(  # type: ignore
             model=self.model,
             messages=self.messages,  # type: ignore
             tools=(  # type: ignore
@@ -132,10 +151,10 @@ class AsyncAgent:
             yield chunk
 
     async def get_response_stream(self) -> MessageContent | None:
-        response = self.send_messages_stream()
+        response: AsyncGenerator[Any, None] = self.send_messages_stream()
         collected_chunks = []
         collected_messages = []
-        tool_calls_by_id: dict[int, ToolCall] = {}
+        tool_calls_by_id: dict[int, ToolCallParam] = {}
 
         async for chunk in response:
             collected_chunks.append(chunk)
@@ -181,12 +200,12 @@ class AsyncAgent:
                         current_tool["id"] = tool_call.id
 
         # 转换工具调用字典为列表
-        tool_calls: list[ToolCall] = []
+        tool_calls: list[ToolCallParam] = []
         for tool_call in tool_calls_by_id.values():
             tool_calls.append(tool_call)
 
         full_content = "".join(collected_messages)
-        message: Message = {
+        message: AssistantMessageParam = {
             "role": "assistant",
             "content": full_content,
             "time": collected_chunks[-1].created,
@@ -204,9 +223,9 @@ class AsyncAgent:
             return await self.get_response_stream()
         else:
             self.messages.append(message)
-            return message.get("content")
+            return message.get("content")  # type: ignore
 
-    async def call_tool(self, tool_calls: list[ToolCall]) -> None:
+    async def call_tool(self, tool_calls: list[ToolCallParam]) -> None:
         # 记录时间
         time: int | None = self.messages[-1].get("time")
         # 因为模型会输出 ture/false 而不是 True/False，所以需要转换
@@ -220,7 +239,7 @@ class AsyncAgent:
             if isinstance(result, Awaitable):
                 result = await result
 
-            message: Message = {
+            message: MessageParam = {
                 "role": "tool",
                 "content": str(result),
                 "tool_call_id": tool_call["id"],
@@ -264,7 +283,7 @@ class AsyncAgent:
         self._fold_previous_tool_results()
         import time
 
-        user_message: Message = {
+        user_message: UserMessageParam = {
             "role": "user",
             "content": content,
             "time": int(time.time()),
@@ -364,7 +383,7 @@ class AsyncAgent:
         """加载MCP配置文件"""
         import json
 
-        with open(config_file, "r", encoding="utf-8") as f:
+        with open(file=config_file, mode="r", encoding="utf-8") as f:
             config: JSONType = json.load(f)
         assert isinstance(config, dict), "config file must be a json object"
         if not config.get("mcpServers"):
@@ -384,34 +403,34 @@ class AsyncAgent:
         logger.info(f"MCP clients cleaned up")
 
     def add_response_handler(
-        self, handler: Callable[[Message], Awaitable[None] | None]
-    ):
+        self, handler: Callable[[AssistantMessageParam], Awaitable[None] | None]
+    ) -> None:
         """添加一个响应处理函数，当收到模型响应时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型输出的消息，以字典形式返回"""
         self.response_handlers.append(handler)
 
     def remove_response_handler(
-        self, handler: Callable[[Message], Awaitable[None] | None]
-    ):
+        self, handler: Callable[[MessageParam], Awaitable[None] | None]
+    ) -> None:
         self.response_handlers.remove(handler)
 
     def add_stream_chunk_handler(
         self, handler: Callable[[str], Awaitable[None] | None]
-    ):
+    ) -> None:
         """添加一个流式响应处理函数，当收到模型响应时，会调用该函数。只有在stream=True时，才会生效。函数的第一个（且是唯一一个）参数应当是模型输出的单个词语，以字符串形式返回"""
         self.stream_chunk_handlers.append(handler)
 
     def remove_stream_chunk_handler(
         self, handler: Callable[[str], Awaitable[None] | None]
-    ):
+    ) -> None:
         self.stream_chunk_handlers.remove(handler)
 
     def add_tool_call_handler(
-        self, handler: Callable[[ToolCall], Awaitable[None] | None]
-    ):
+        self, handler: Callable[[ToolCallParam], Awaitable[None] | None]
+    ) -> None:
         """添加一个工具调用处理函数，当收到模型调用请求时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型的工具调用，以字典形式返回"""
         self.tool_call_handlers.append(handler)
 
     def remove_tool_call_handler(
-        self, handler: Callable[[ToolCall], Awaitable[None] | None]
-    ):
+        self, handler: Callable[[ToolCallParam], Awaitable[None] | None]
+    ) -> None:
         self.tool_call_handlers.remove(handler)

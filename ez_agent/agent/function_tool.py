@@ -1,8 +1,9 @@
-from unittest.mock import Base
 from .base_tool import Tool
 from abc import ABC
 from typing import Any
 from collections.abc import Callable, Awaitable
+from openai.types import FunctionDefinition, FunctionParameters
+from openai.types.chat import ChatCompletionToolParam
 import inspect
 
 
@@ -78,7 +79,7 @@ class BaseFunctionTool(Tool, ABC):
             if param.default == inspect.Parameter.empty:
                 required.append(param_name)
 
-        parameters = {
+        parameters: FunctionParameters = {
             "type": "object",
             "properties": props,
         }
@@ -113,16 +114,16 @@ class FunctionTool(BaseFunctionTool):
         tool.name = self.name
         tool.parameters = self.parameters
         tool.parameters["properties"] = dict(
-            list(self.parameters["properties"].items())[1:]
+            list(self.parameters["properties"].items())[1:]  # type: ignore
         )
-        tool.parameters["required"] = self.parameters["required"][1:]
+        tool.parameters["required"] = self.parameters["required"][1:]  # type: ignore
         tool.description = self.description
         return tool
 
     def __repr__(self) -> str:
         return f"FunctionTool(name={self.name}, description={self.description}, parameters={self.parameters})"
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> ChatCompletionToolParam:
         return {
             "type": "function",
             "function": {

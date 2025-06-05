@@ -6,6 +6,7 @@ from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters, McpError
 from mcp.client.stdio import stdio_client
 from mcp.client.sse import sse_client
+from openai.types.chat import ChatCompletionToolParam
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +155,7 @@ class MCPTool(Tool):
         else:
             raise ValueError(f"Tool {self.name} not found")
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> ChatCompletionToolParam:
         if not self._initialized:
             raise ValueError(f"Tool '{self.name}' not initialized")
         return {

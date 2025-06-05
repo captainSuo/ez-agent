@@ -1,25 +1,61 @@
-from collections.abc import Mapping
+from collections.abc import Mapping, Iterable
 from typing import Literal, TypeAlias, TypedDict, NotRequired
+from openai.types.chat import (
+    ChatCompletionMessageParam,
+    ChatCompletionDeveloperMessageParam,
+    ChatCompletionSystemMessageParam,
+    ChatCompletionUserMessageParam,
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionToolMessageParam,
+    ChatCompletionFunctionMessageParam,
+    ChatCompletionMessageToolCallParam,
+    ChatCompletionContentPartParam,
+)
 
 
 JSONType: TypeAlias = (
     Mapping[str, "JSONType"] | list["JSONType"] | str | int | float | bool | None
 )
 
-MessageContent: TypeAlias = dict[str, list[dict[str, str]]] | str
 
+class TimedMessage(TypedDict):
 
-class ToolCall(TypedDict):
-    type: Literal["function"]
-    function: dict[str, str]
-    id: str
-
-
-class Message(TypedDict):
-
-    role: Literal["system", "user", "assistant", "tool"]
-    content: MessageContent | None
-    name: NotRequired[str]
     time: NotRequired[int]
-    tool_calls: NotRequired[list[ToolCall]]
-    tool_call_id: NotRequired[str]
+
+
+class DeveloperMessageParam(TimedMessage, ChatCompletionDeveloperMessageParam):
+    pass
+
+
+class SystemMessageParam(TimedMessage, ChatCompletionSystemMessageParam):
+    pass
+
+
+class UserMessageParam(TimedMessage, ChatCompletionUserMessageParam):
+    pass
+
+
+class AssistantMessageParam(TimedMessage, ChatCompletionAssistantMessageParam):
+    pass
+
+
+class ToolMessageParam(TimedMessage, ChatCompletionToolMessageParam):
+    pass
+
+
+class FunctionMessageParam(TimedMessage, ChatCompletionFunctionMessageParam):
+    pass
+
+
+MessageParam: TypeAlias = (
+    DeveloperMessageParam
+    | SystemMessageParam
+    | UserMessageParam
+    | AssistantMessageParam
+    | ToolMessageParam
+    | FunctionMessageParam
+)
+
+ToolCallParam = ChatCompletionMessageToolCallParam
+ContentPartParam = ChatCompletionContentPartParam
+MessageContent: TypeAlias = Iterable[ContentPartParam] | str

@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable
 from typing import Any
-from ..types import JSONType
+from openai.types import FunctionParameters
+from openai.types.chat import ChatCompletionToolParam
 
 
 class Tool(ABC):
     foldable = False
     name: str = "undefined"
-    parameters: dict[str, Any] = {}
+    parameters: FunctionParameters = {}
     description: str = ""
 
     @abstractmethod
@@ -19,5 +20,5 @@ class Tool(ABC):
         pass
 
     @abstractmethod
-    def to_dict(self) -> JSONType:
+    def to_dict(self) -> ChatCompletionToolParam:
         pass

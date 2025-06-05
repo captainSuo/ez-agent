@@ -1,8 +1,18 @@
-from typing import Self, Any
+from asyncio import AbstractEventLoop
+from typing import Self, Any, cast
 from collections.abc import Callable, Coroutine, Generator
 from copy import deepcopy
 from contextlib import contextmanager
 from openai import OpenAI, NOT_GIVEN, NotGiven
+from openai.types.chat.chat_completion import ChatCompletion
+
+from ez_agent.types import (
+    AssistantMessageParam,
+    MessageContent,
+    MessageParam,
+    ToolCallParam,
+    UserMessageParam,
+)
 from .base_tool import Tool
 
 
@@ -31,12 +41,12 @@ class Agent:
 
         self.model: str = model
         self.instructions: str = instructions
-        self.messages: list[dict[str, Any]] = [
+        self.messages: list[MessageParam] = [
             {"role": "system", "content": instructions}
         ]
-        self.response_handlers: list[Callable[[dict[str, Any]], None]] = []
+        self.response_handlers: list[Callable[[AssistantMessageParam], None]] = []
         self.stream_chunk_handlers: list[Callable[[str], None]] = []
-        self.tool_call_handlers: list[Callable[[dict[str, Any]], None]] = []
+        self.tool_call_handlers: list[Callable[[ToolCallParam], None]] = []
 
         self.frequency_penalty: float | None | NotGiven = frequency_penalty
         self.temperature: float | None | NotGiven = temperature
@@ -69,11 +79,11 @@ class Agent:
     def get_tool(self, name: str) -> Tool | None:
         return self._tools.get(name) if self._tools else None
 
-    def send_messages(self) -> dict[str, Any]:
-        response = self.client.chat.completions.create(  # type: ignore
+    def send_messages(self) -> MessageParam:
+        response: ChatCompletion = self.client.chat.completions.create(
             model=self.model,
-            messages=self.messages,  # type: ignore
-            tools=(  # type: ignore
+            messages=self.messages,
+            tools=(
                 [tool.to_dict() for tool in self._tools.values()]
                 if self._tools
                 else NOT_GIVEN
@@ -86,22 +96,26 @@ class Agent:
             top_p=self.top_p,
             stream=False,
         )
-        result: dict[str, Any] = response.choices[0].message.to_dict()
+        result: AssistantMessageParam = cast(
+            AssistantMessageParam, response.choices[0].message.to_dict()
+        )
         result["time"] = response.created
         for response_handler in self.response_handlers:
             response_handler(result)
         return result
 
-    def get_response(self) -> str | None:
-        response: dict[str, Any] = self.send_messages()
-        tool_calls: list[dict[str, Any]] | None = (
-            response.get("tool_calls") if response.get("tool_calls") else None
+    def get_response(self) -> MessageContent | None:
+        response: MessageParam = self.send_messages()
+        tool_calls: list[ToolCallParam] | None = (
+            cast(list[ToolCallParam], response.get("tool_calls"))
+            if response.get("tool_calls")
+            else None
         )
         self.messages.append(response)
         if tool_calls:
             self.call_tool(tool_calls)
             return self.get_response()
-        return response.get("content")
+        return response.get("content")  # type: ignore
 
     def send_messages_stream(self) -> Generator[Any, None, None]:
         response = self.client.chat.completions.create(  # type: ignore
@@ -125,11 +139,11 @@ class Agent:
                 break
             yield chunk
 
-    def get_response_stream(self) -> str | None:
+    def get_response_stream(self) -> MessageContent | None:
         response = self.send_messages_stream()
         collected_chunks = []
         collected_messages = []
-        tool_calls_by_id: dict[int, dict[str, Any]] = {}
+        tool_calls_by_id: dict[int, ToolCallParam] = {}
 
         for chunk in response:
             collected_chunks.append(chunk)
@@ -173,12 +187,12 @@ class Agent:
                         current_tool["id"] = tool_call.id
 
         # 转换工具调用字典为列表
-        tool_calls: list[dict[str, Any]] = []
+        tool_calls: list[ToolCallParam] = []
         for tool_call in tool_calls_by_id.values():
             tool_calls.append(tool_call)
 
         full_content = "".join(collected_messages)
-        message: dict[str, Any] = {
+        message: AssistantMessageParam = {
             "role": "assistant",
             "content": full_content,
             "time": collected_chunks[-1].created,
@@ -194,9 +208,9 @@ class Agent:
             return self.get_response_stream()
         else:
             self.messages.append(message)
-            return message.get("content")
+            return message.get("content")  # type: ignore
 
-    def call_tool(self, tool_calls: list[dict[str, Any]]) -> None:
+    def call_tool(self, tool_calls: list[ToolCallParam]) -> None:
         # 因为模型会输出 ture/false 而不是 True/False，所以需要转换
         true: bool = True
         false: bool = False
@@ -214,7 +228,7 @@ class Agent:
                 except RuntimeError:
                     import asyncio
 
-                    loop = asyncio.get_running_loop()
+                    loop: AbstractEventLoop = asyncio.get_running_loop()
                     result = loop.run_until_complete(result)
 
             import time
@@ -236,7 +250,7 @@ class Agent:
         for index, _message in enumerate(self.messages):
             if not _message.get("tool_calls"):
                 continue
-            for tool_call in _message["tool_calls"]:
+            for tool_call in _message["tool_calls"]:  # type: ignore
                 if not self._tools[tool_call["function"]["name"]].foldable:
                     continue
                 for i in range(index + 1, len(self.messages)):
@@ -252,7 +266,7 @@ class Agent:
 
     def run(
         self,
-        content: str | list[dict[str, Any]],
+        content: MessageContent,
         user_name: str | NotGiven = NOT_GIVEN,
         stream: bool = False,
     ) -> str | None:
@@ -261,7 +275,7 @@ class Agent:
         self._fold_previous_tool_results()
         import time
 
-        user_message = {
+        user_message: UserMessageParam = {
             "role": "user",
             "content": content,
             "time": int(time.time()),
@@ -271,9 +285,9 @@ class Agent:
         self.messages.append(user_message)
 
         if stream:
-            return self.get_response_stream()
+            return str(self.get_response_stream())
         else:
-            return self.get_response()
+            return str(self.get_response())
 
     def save_messages(self, file_path: str) -> None:
         import json
@@ -346,23 +360,29 @@ class Agent:
             if int(time.time()) - message.get("time", 0) > expire_time:
                 self.messages.remove(message)
 
-    def add_response_handler(self, handler: Callable[[dict[str, Any]], None]):
+    def add_response_handler(
+        self, handler: Callable[[AssistantMessageParam], None]
+    ) -> None:
         """添加一个响应处理函数，当收到模型响应时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型输出的消息，以字典形式返回"""
         self.response_handlers.append(handler)
 
-    def remove_response_handler(self, handler: Callable[[dict[str, Any]], None]):
+    def remove_response_handler(
+        self, handler: Callable[[AssistantMessageParam], None]
+    ) -> None:
         self.response_handlers.remove(handler)
 
-    def add_stream_chunk_handler(self, handler: Callable[[str], None]):
+    def add_stream_chunk_handler(self, handler: Callable[[str], None]) -> None:
         """添加一个流式响应处理函数，当收到模型响应时，会调用该函数。只有在stream=True时，才会生效。函数的第一个（且是唯一一个）参数应当是模型输出的单个词语，以字符串形式返回"""
         self.stream_chunk_handlers.append(handler)
 
     def remove_stream_chunk_handler(self, handler: Callable[[str], None]):
         self.stream_chunk_handlers.remove(handler)
 
-    def add_tool_call_handler(self, handler: Callable[[dict[str, Any]], None]):
+    def add_tool_call_handler(self, handler: Callable[[ToolCallParam], None]) -> None:
         """添加一个工具调用处理函数，当收到模型调用请求时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型的工具调用，以字典形式返回"""
         self.tool_call_handlers.append(handler)
 
-    def remove_tool_call_handler(self, handler: Callable[[dict[str, Any]], None]):
+    def remove_tool_call_handler(
+        self, handler: Callable[[ToolCallParam], None]
+    ) -> None:
         self.tool_call_handlers.remove(handler)
