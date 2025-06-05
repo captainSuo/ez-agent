@@ -17,10 +17,10 @@
 ## 安装:
 
 ```bash
-pip install ez_agent
+pip install ez-agent
 ```
 
-## 使用方法:
+## 使用方法
 
 ### 导入并创建 Agent:
 
@@ -213,7 +213,7 @@ async with agent.safe_modify(merge_messages=False):
     ...
 ```
 
-## 原理
+## 附录
 
 ### `Agent.run` 流程图
 
@@ -237,4 +237,19 @@ graph TD
     K -->|没有| E
 
     E --> L[Agent.run 结束]
+```
+
+### 工具继承关系图
+
+```mermaid
+graph TD
+Tool[Tool - ABC] --> BaseFunctionTool[BaseFunctionTool]
+Tool --> MCPTool[MCPTool]
+
+    BaseFunctionTool --> FunctionTool[FunctionTool]
+    BaseFunctionTool --> AsyncFunctionTool[AsyncFunctionTool]
+
+    FunctionTool --> FoldableFunctionTool[FoldableFunctionTool]
+    AsyncFunctionTool --> FoldableAsyncFunctionTool[FoldableAsyncFunctionTool]
+    MCPTool --> FoldableMCPTool[FoldableMCPTool]
 ```
