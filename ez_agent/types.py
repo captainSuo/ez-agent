@@ -1,11 +1,10 @@
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from typing import Literal, TypeAlias, TypedDict, NotRequired
 
 
-_JSONType: TypeAlias = (
-    Mapping[str, "JSONType"] | Iterable["JSONType"] | str | int | float | bool | None
+JSONType: TypeAlias = (
+    Mapping[str, "JSONType"] | list["JSONType"] | str | int | float | bool | None
 )
-JSONType = dict[str, _JSONType] | list[_JSONType]
 
 MessageContent: TypeAlias = dict[str, list[dict[str, str]]] | str
 
