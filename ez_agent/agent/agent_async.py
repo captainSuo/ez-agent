@@ -14,6 +14,7 @@ from ..types import (
     MessageContent,
     MessageParam,
     ToolCallParam,
+    ToolMessageParam,
     UserMessageParam,
 )
 
@@ -88,7 +89,7 @@ class AsyncAgent:
     def get_tool(self, name: str) -> Tool | None:
         return self._tools.get(name) if self._tools else None
 
-    async def send_messages(self) -> MessageParam:
+    async def send_messages(self) -> AssistantMessageParam:
         response: ChatCompletion = await self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,
@@ -116,7 +117,7 @@ class AsyncAgent:
         return result
 
     async def get_response(self) -> MessageContent | None:
-        response: MessageParam = await self.send_messages()
+        response: AssistantMessageParam = await self.send_messages()
         tool_calls: list[ToolCallParam] | None = (
             cast(list[ToolCallParam], response.get("tool_calls"))
             if response.get("tool_calls")
@@ -239,7 +240,7 @@ class AsyncAgent:
             if isinstance(result, Awaitable):
                 result = await result
 
-            message: MessageParam = {
+            message: ToolMessageParam = {
                 "role": "tool",
                 "content": str(result),
                 "tool_call_id": tool_call["id"],
@@ -408,7 +409,7 @@ class AsyncAgent:
         self.response_handlers.append(handler)
 
     def remove_response_handler(
-        self, handler: Callable[[MessageParam], Awaitable[None] | None]
+        self, handler: Callable[[AssistantMessageParam], Awaitable[None] | None]
     ) -> None:
         self.response_handlers.remove(handler)
 

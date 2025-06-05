@@ -79,7 +79,7 @@ class Agent:
     def get_tool(self, name: str) -> Tool | None:
         return self._tools.get(name) if self._tools else None
 
-    def send_messages(self) -> MessageParam:
+    def send_messages(self) -> AssistantMessageParam:
         response: ChatCompletion = self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,
@@ -105,7 +105,7 @@ class Agent:
         return result
 
     def get_response(self) -> MessageContent | None:
-        response: MessageParam = self.send_messages()
+        response: AssistantMessageParam = self.send_messages()
         tool_calls: list[ToolCallParam] | None = (
             cast(list[ToolCallParam], response.get("tool_calls"))
             if response.get("tool_calls")
