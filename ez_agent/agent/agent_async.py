@@ -391,7 +391,13 @@ class AsyncAgent:
 
     async def load_mcp_config(self, config_file: str) -> None:
         """加载MCP配置文件"""
-        import json
+        import json, os
+
+        if not os.path.exists(config_file):
+            os.makedirs(os.path.dirname(config_file), exist_ok=True)
+            with open(file=config_file, mode="w", encoding="utf-8") as f:
+                json.dump({}, f, ensure_ascii=False, indent=2)
+            return
 
         with open(file=config_file, mode="r", encoding="utf-8") as f:
             config: JSONType = json.load(f)
