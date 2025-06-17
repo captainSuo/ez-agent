@@ -50,6 +50,6 @@ MessageParam: TypeAlias = (
     | FunctionMessageParam
 )
 
-ToolCallParam = ChatCompletionMessageToolCallParam
-ContentPartParam = ChatCompletionContentPartParam
+ToolCallParam: TypeAlias = ChatCompletionMessageToolCallParam
+ContentPartParam: TypeAlias = ChatCompletionContentPartParam
 MessageContent: TypeAlias = Iterable[ContentPartParam] | str

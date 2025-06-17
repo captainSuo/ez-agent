@@ -240,7 +240,10 @@ class Agent:
             if not _message.get("tool_calls"):
                 continue
             for tool_call in _message["tool_calls"]:  # type: ignore
-                if not self._tools[tool_call["function"]["name"]].foldable:
+                tool_name: str = tool_call["function"]["name"]
+                if not self._tools.get(tool_name):
+                    continue
+                if not self._tools[tool_name].foldable:
                     continue
                 for i in range(index + 1, len(self.messages)):
                     if self.messages[i].get("role") != "tool":
