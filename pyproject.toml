@@ -1,5 +1,5 @@
 [project]
-name = "ez_agent_ark"
+name = "ez_agent"
 authors = [{ name = "captainSuo", email = "captainsuo@outlook.com" }]
 version = "0.2.0alpha0"
 description = "基于 volcengine-python-sdk 的简单 AI Agent 框架"
