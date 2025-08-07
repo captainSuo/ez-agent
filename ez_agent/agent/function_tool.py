@@ -2,9 +2,11 @@ from .base_tool import Tool
 from abc import ABC
 from typing import Any
 from collections.abc import Callable, Awaitable
-from openai.types import FunctionParameters
-from openai.types.chat import ChatCompletionToolParam
+from typing import TypeAlias
+from volcenginesdkarkruntime.types.chat import ChatCompletionToolParam
 import inspect
+
+FunctionParameters: TypeAlias = dict[str, object]
 
 
 class BaseFunctionTool(Tool, ABC):
