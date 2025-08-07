@@ -1,7 +1,6 @@
 from collections.abc import Mapping, Iterable
-from typing import TypeAlias, NotRequired
-from openai.types.chat import (
-    ChatCompletionDeveloperMessageParam,
+from typing_extensions import TypeAlias, NotRequired
+from volcenginesdkarkruntime.types.chat import (
     ChatCompletionSystemMessageParam,
     ChatCompletionUserMessageParam,
     ChatCompletionAssistantMessageParam,
@@ -15,10 +14,6 @@ from openai.types.chat import (
 JSONType: TypeAlias = (
     Mapping[str, "JSONType"] | list["JSONType"] | str | int | float | bool | None
 )
-
-
-class DeveloperMessageParam(ChatCompletionDeveloperMessageParam):
-    time: NotRequired[int]
 
 
 class SystemMessageParam(ChatCompletionSystemMessageParam):
@@ -42,8 +37,7 @@ class FunctionMessageParam(ChatCompletionFunctionMessageParam):
 
 
 MessageParam: TypeAlias = (
-    DeveloperMessageParam
-    | SystemMessageParam
+    SystemMessageParam
     | UserMessageParam
     | AssistantMessageParam
     | ToolMessageParam
