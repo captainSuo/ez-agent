@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
+from typing import TypeAlias
 from collections.abc import Awaitable
-from openai.types import FunctionParameters
-from openai.types.chat import ChatCompletionToolParam
+from volcenginesdkarkruntime.types.chat import ChatCompletionToolParam
+
+FunctionParameters: TypeAlias = dict[str, object]
 
 
 class Tool(ABC):

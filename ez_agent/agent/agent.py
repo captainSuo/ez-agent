@@ -1,10 +1,12 @@
 import time
-from typing import Self, cast
+from typing import Self, cast, Literal
 from collections.abc import Callable, Generator
 from copy import deepcopy
 from contextlib import contextmanager
-from openai import OpenAI, NOT_GIVEN, NotGiven, Stream
-from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from volcenginesdkarkruntime import Ark
+from volcenginesdkarkruntime._streaming import Stream
+from volcenginesdkarkruntime.types.chat.completion_create_params import Thinking
+from volcenginesdkarkruntime.types.chat import ChatCompletion, ChatCompletionChunk
 
 from ez_agent.types import (
     AssistantMessageParam,
@@ -25,39 +27,39 @@ class Agent:
         base_url: str,
         instructions: str = "",
         tools: list[Tool] | None = None,
-        frequency_penalty: float | None | NotGiven = NOT_GIVEN,
-        temperature: float | None | NotGiven = NOT_GIVEN,
-        top_p: float | None | NotGiven = NOT_GIVEN,
-        max_tokens: int | None | NotGiven = NOT_GIVEN,
-        max_completion_tokens: int | None | NotGiven = NOT_GIVEN,
+        frequency_penalty: float | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
+        max_completion_tokens: int | None = None,
+        thinking: bool | None = None,
         message_expire_time: int | None = None,
     ) -> None:
-        self._tools: dict[str, Tool] | None = (
-            {tool.name: tool for tool in tools} if tools else None
-        )
-        self._client: OpenAI = OpenAI(api_key=api_key, base_url=base_url)
+        self._tools: dict[str, Tool] | None = {tool.name: tool for tool in tools} if tools else None
+        self._client: Ark = Ark(api_key=api_key, base_url=base_url)
         self._api_key: str = api_key
         self._base_url: str = base_url
 
         self.model: str = model
         self.instructions: str = instructions
-        self.messages: list[MessageParam] = [
-            {"role": "system", "content": instructions}
-        ]
+        self.messages: list[MessageParam] = [{"role": "system", "content": instructions}]
         self.response_handlers: list[Callable[[AssistantMessageParam], None]] = []
         self.stream_chunk_handlers: list[Callable[[str], None]] = []
         self.tool_call_handlers: list[Callable[[ToolCallParam], None]] = []
+        self.reasoning_handlers: list[Callable[[str], None]] = []
+        self.stream_reasoning_handlers: list[Callable[[str], None]] = []
 
-        self.frequency_penalty: float | None | NotGiven = frequency_penalty
-        self.temperature: float | None | NotGiven = temperature
-        self.top_p: float | None | NotGiven = top_p
-        self.max_tokens: int | None | NotGiven = max_tokens
-        self.max_completion_tokens: int | None | NotGiven = max_completion_tokens
+        self.frequency_penalty: float | None = frequency_penalty
+        self.temperature: float | None = temperature
+        self.top_p: float | None = top_p
+        self.max_tokens: int | None = max_tokens
+        self.max_completion_tokens: int | None = max_completion_tokens
+        self.thinking: bool | None = thinking
 
         self.message_expire_time: int | None = message_expire_time
 
     @property
-    def client(self) -> OpenAI:
+    def client(self) -> Ark:
         return self._client
 
     @property
@@ -80,14 +82,16 @@ class Agent:
         return self._tools.get(name) if self._tools else None
 
     def send_messages(self) -> AssistantMessageParam:
-        response: ChatCompletion = self.client.chat.completions.create(
+        thinking_mapping: dict[bool | None, Literal["enabled", "disabled", "auto"]] = {
+            True: "enabled",
+            False: "disabled",
+            None: "auto",
+        }
+        thinking_param: Thinking = {"type": thinking_mapping.get(self.thinking) or "auto"}
+        response: ChatCompletion | Stream[ChatCompletionChunk] = self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,
-            tools=(
-                [tool.to_dict() for tool in self._tools.values()]
-                if self._tools
-                else NOT_GIVEN
-            ),
+            tools=([tool.to_dict() for tool in self._tools.values()] if self._tools else None),
             tool_choice="auto" if self._tools else "none",
             frequency_penalty=self.frequency_penalty,
             max_tokens=self.max_tokens,
@@ -95,11 +99,15 @@ class Agent:
             temperature=self.temperature,
             top_p=self.top_p,
             stream=False,
+            thinking=thinking_param,
         )
-        result: AssistantMessageParam = cast(
-            AssistantMessageParam, response.choices[0].message.to_dict()
-        )
+        assert isinstance(response, ChatCompletion)
+        result: AssistantMessageParam = cast(AssistantMessageParam, response.choices[0].message.to_dict())
         result["time"] = response.created
+        reasoning_content = response.choices[0].message.reasoning_content
+        if reasoning_content:
+            for reasoning_handler in self.reasoning_handlers:
+                reasoning_handler(reasoning_content)
         for response_handler in self.response_handlers:
             response_handler(result)
         return result
@@ -107,9 +115,7 @@ class Agent:
     def get_response(self) -> MessageContent | None:
         response: AssistantMessageParam = self.send_messages()
         tool_calls: list[ToolCallParam] | None = (
-            cast(list[ToolCallParam], response.get("tool_calls"))
-            if response.get("tool_calls")
-            else None
+            cast(list[ToolCallParam], response.get("tool_calls")) if response.get("tool_calls") else None
         )
         self.messages.append(response)
         if tool_calls:
@@ -118,14 +124,16 @@ class Agent:
         return response.get("content")  # type: ignore
 
     def send_messages_stream(self) -> Generator[ChatCompletionChunk, None, None]:
-        response: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
+        thinking_mapping: dict[bool | None, Literal["enabled", "disabled", "auto"]] = {
+            True: "enabled",
+            False: "disabled",
+            None: "auto",
+        }
+        thinking_param: Thinking = {"type": thinking_mapping.get(self.thinking) or "auto"}
+        response: ChatCompletion | Stream[ChatCompletionChunk] = self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,
-            tools=(
-                [tool.to_dict() for tool in self._tools.values()]
-                if self._tools
-                else NOT_GIVEN
-            ),
+            tools=([tool.to_dict() for tool in self._tools.values()] if self._tools else None),
             tool_choice="auto" if self._tools else "none",
             frequency_penalty=self.frequency_penalty,
             max_tokens=self.max_tokens,
@@ -133,7 +141,9 @@ class Agent:
             temperature=self.temperature,
             top_p=self.top_p,
             stream=True,
+            thinking=thinking_param,
         )
+        assert isinstance(response, Stream)
         for chunk in response:
             if chunk.choices[0].finish_reason == "stop":
                 break
@@ -143,6 +153,7 @@ class Agent:
         response = self.send_messages_stream()
         collected_chunks: list[ChatCompletionChunk] = []
         collected_messages: list[str] = []
+        collected_reasoning_messages: list[str] = []
         tool_calls_by_id: dict[int, ToolCallParam] = {}
 
         for chunk in response:
@@ -152,11 +163,13 @@ class Agent:
                 for stream_chunk_handler in self.stream_chunk_handlers:
                     stream_chunk_handler(chunk.choices[0].delta.content)
 
+            if chunk.choices[0].delta.reasoning_content:
+                collected_reasoning_messages.append(chunk.choices[0].delta.reasoning_content)
+                for resoning_stream_handler in self.stream_reasoning_handlers:
+                    resoning_stream_handler(chunk.choices[0].delta.reasoning_content)
+
             # 处理工具调用
-            if (
-                hasattr(chunk.choices[0].delta, "tool_calls")
-                and chunk.choices[0].delta.tool_calls
-            ):
+            if hasattr(chunk.choices[0].delta, "tool_calls") and chunk.choices[0].delta.tool_calls:
                 for tool_call in chunk.choices[0].delta.tool_calls:
                     call_id = tool_call.index
 
@@ -173,16 +186,10 @@ class Agent:
                         if not tool_call.function:
                             continue
                         function_data = current_tool["function"]
-                        if (
-                            hasattr(tool_call.function, "name")
-                            and tool_call.function.name
-                        ):
+                        if hasattr(tool_call.function, "name") and tool_call.function.name:
                             function_data["name"] = tool_call.function.name
 
-                        if (
-                            hasattr(tool_call.function, "arguments")
-                            and tool_call.function.arguments
-                        ):
+                        if hasattr(tool_call.function, "arguments") and tool_call.function.arguments:
                             function_data["arguments"] += tool_call.function.arguments
 
                     if hasattr(tool_call, "id") and tool_call.id:
@@ -199,6 +206,12 @@ class Agent:
             "content": full_content,
             "time": collected_chunks[-1].created,
         }
+
+        if collected_reasoning_messages:
+            reasoning_content: str = "".join(collected_reasoning_messages)
+            for reasoning_handler in self.reasoning_handlers:
+                reasoning_handler(reasoning_content)
+
         for response_handler in self.response_handlers:
             response_handler(message)
 
@@ -259,7 +272,7 @@ class Agent:
     def run(
         self,
         content: MessageContent,
-        user_name: str | NotGiven = NOT_GIVEN,
+        user_name: str | None = None,
         stream: bool = False,
     ) -> str | None:
         if self.message_expire_time:
@@ -351,15 +364,11 @@ class Agent:
             if int(time.time()) - message.get("time", 0) > expire_time:
                 self.messages.remove(message)
 
-    def add_response_handler(
-        self, handler: Callable[[AssistantMessageParam], None]
-    ) -> None:
+    def add_response_handler(self, handler: Callable[[AssistantMessageParam], None]) -> None:
         """添加一个响应处理函数，当收到模型响应时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型输出的消息，以字典形式返回"""
         self.response_handlers.append(handler)
 
-    def remove_response_handler(
-        self, handler: Callable[[AssistantMessageParam], None]
-    ) -> None:
+    def remove_response_handler(self, handler: Callable[[AssistantMessageParam], None]) -> None:
         self.response_handlers.remove(handler)
 
     def add_stream_chunk_handler(self, handler: Callable[[str], None]) -> None:
@@ -373,7 +382,19 @@ class Agent:
         """添加一个工具调用处理函数，当收到模型调用请求时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型的工具调用，以字典形式返回"""
         self.tool_call_handlers.append(handler)
 
-    def remove_tool_call_handler(
-        self, handler: Callable[[ToolCallParam], None]
-    ) -> None:
+    def remove_tool_call_handler(self, handler: Callable[[ToolCallParam], None]) -> None:
         self.tool_call_handlers.remove(handler)
+
+    def add_reasoning_handler(self, handler: Callable[[str], None]) -> None:
+        """添加一个推理处理函数，当收到模型推理请求时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型的推理请求，以字符串形式返回"""
+        self.reasoning_handlers.append(handler)
+
+    def remove_reasoning_handler(self, handler: Callable[[str], None]) -> None:
+        self.reasoning_handlers.remove(handler)
+
+    def add_stream_reasoning_handler(self, handler: Callable[[str], None]) -> None:
+        """添加一个流式推理处理函数，当收到模型推理请求时，会调用该函数。只有在stream=True时，才会生效。函数的第一个（且是唯一一个）参数应当是模型的推理请求，以字符串形式返回"""
+        self.stream_reasoning_handlers.append(handler)
+
+    def remove_stream_reasoning_handler(self, handler: Callable[[str], None]) -> None:
+        self.stream_reasoning_handlers.remove(handler)

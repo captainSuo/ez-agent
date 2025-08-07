@@ -1,12 +1,16 @@
 import logging, time
-from typing import Self, cast
+from typing import Literal, Self, cast
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from copy import deepcopy
 from contextlib import asynccontextmanager
-from openai import AsyncOpenAI, NOT_GIVEN, AsyncStream, NotGiven
-from openai.types.chat.chat_completion import ChatCompletion
-from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
-from openai.types.chat.chat_completion_message_tool_call_param import Function
+from volcenginesdkarkruntime import AsyncArk
+from volcenginesdkarkruntime._streaming import AsyncStream
+from volcenginesdkarkruntime.types.chat.completion_create_params import Thinking
+from volcenginesdkarkruntime.types.chat.chat_completion import ChatCompletion
+from volcenginesdkarkruntime.types.chat.chat_completion_chunk import ChatCompletionChunk
+from volcenginesdkarkruntime.types.chat.chat_completion_message_tool_call_param import (
+    Function,
+)
 from .base_tool import Tool
 from .mcp_tool import MCPClient
 from ..types import (
@@ -31,44 +35,41 @@ class AsyncAgent:
         base_url: str,
         instructions: str = "",
         tools: list[Tool] | None = None,
-        frequency_penalty: float | None | NotGiven = NOT_GIVEN,
-        temperature: float | None | NotGiven = NOT_GIVEN,
-        top_p: float | None | NotGiven = NOT_GIVEN,
-        max_tokens: int | None | NotGiven = NOT_GIVEN,
-        max_completion_tokens: int | None | NotGiven = NOT_GIVEN,
+        frequency_penalty: float | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        max_tokens: int | None = None,
+        max_completion_tokens: int | None = None,
+        thinking: bool | None = None,
         message_expire_time: int | None = None,
     ) -> None:
-        self._tools: dict[str, Tool] | None = (
-            {tool.name: tool for tool in tools} if tools else None
-        )
-        self._client: AsyncOpenAI = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self._tools: dict[str, Tool] | None = {tool.name: tool for tool in tools} if tools else None
+        self._client: AsyncArk = AsyncArk(api_key=api_key, base_url=base_url)
         self._api_key: str = api_key
         self._base_url: str = base_url
 
         self.model: str = model
         self.instructions: str = instructions
-        self.messages: list[MessageParam] = [
-            {"role": "system", "content": instructions}
-        ]
-        self.response_handlers: list[
-            Callable[[AssistantMessageParam], Awaitable[None] | None]
-        ] = []
+        self.messages: list[MessageParam] = [{"role": "system", "content": instructions}]
+        self.response_handlers: list[Callable[[AssistantMessageParam], Awaitable[None] | None]] = []
         self.stream_chunk_handlers: list[Callable[[str], Awaitable[None] | None]] = []
-        self.tool_call_handlers: list[
-            Callable[[ToolCallParam], Awaitable[None] | None]
-        ] = []
+        self.tool_call_handlers: list[Callable[[ToolCallParam], Awaitable[None] | None]] = []
+        self.reasoning_handlers: list[Callable[[str], Awaitable[None] | None]] = []
+        self.stream_reasoning_handlers: list[Callable[[str], Awaitable[None] | None]] = []
+
         self._mcp_clients: list[MCPClient] = []
 
-        self.frequency_penalty: float | None | NotGiven = frequency_penalty
-        self.temperature: float | None | NotGiven = temperature
-        self.top_p: float | None | NotGiven = top_p
-        self.max_tokens: int | None | NotGiven = max_tokens
-        self.max_completion_tokens: int | None | NotGiven = max_completion_tokens
+        self.frequency_penalty: float | None = frequency_penalty
+        self.temperature: float | None = temperature
+        self.top_p: float | None = top_p
+        self.max_tokens: int | None = max_tokens
+        self.max_completion_tokens: int | None = max_completion_tokens
+        self.thinking: bool | None = thinking
 
         self.message_expire_time: int | None = message_expire_time
 
     @property
-    def client(self) -> AsyncOpenAI:
+    def client(self) -> AsyncArk:
         return self._client
 
     @property
@@ -91,14 +92,16 @@ class AsyncAgent:
         return self._tools.get(name) if self._tools else None
 
     async def send_messages(self) -> AssistantMessageParam:
-        response: ChatCompletion = await self.client.chat.completions.create(
+        thinking_mapping: dict[bool | None, Literal["enabled", "disabled", "auto"]] = {
+            True: "enabled",
+            False: "disabled",
+            None: "auto",
+        }
+        thinking_param: Thinking = {"type": thinking_mapping.get(self.thinking) or "auto"}
+        response: ChatCompletion | AsyncStream = await self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,
-            tools=(
-                [tool.to_dict() for tool in self._tools.values()]
-                if self._tools
-                else NOT_GIVEN
-            ),
+            tools=([tool.to_dict() for tool in self._tools.values()] if self._tools else None),
             tool_choice="auto" if self._tools else "none",
             frequency_penalty=self.frequency_penalty,
             max_tokens=self.max_tokens,
@@ -106,11 +109,17 @@ class AsyncAgent:
             temperature=self.temperature,
             top_p=self.top_p,
             stream=False,
+            thinking=thinking_param,
         )
-        result: AssistantMessageParam = cast(
-            AssistantMessageParam, response.choices[0].message.to_dict()
-        )
+        assert isinstance(response, ChatCompletion)
+        result: AssistantMessageParam = cast(AssistantMessageParam, response.choices[0].message.to_dict())
         result["time"] = response.created
+        reasoning_content = response.choices[0].message.reasoning_content
+        if reasoning_content:
+            for reasoning_handler in self.reasoning_handlers:
+                awaitable: Awaitable[None] | None = reasoning_handler(reasoning_content)
+                if awaitable:
+                    await awaitable
         for response_handler in self.response_handlers:
             awaitable: Awaitable[None] | None = response_handler(result)
             if awaitable:
@@ -120,9 +129,7 @@ class AsyncAgent:
     async def get_response(self) -> MessageContent | None:
         response: AssistantMessageParam = await self.send_messages()
         tool_calls: list[ToolCallParam] | None = (
-            cast(list[ToolCallParam], response.get("tool_calls"))
-            if response.get("tool_calls")
-            else None
+            cast(list[ToolCallParam], response.get("tool_calls")) if response.get("tool_calls") else None
         )
         self.messages.append(response)
         if tool_calls:
@@ -131,35 +138,36 @@ class AsyncAgent:
         return response.get("content")  # type: ignore
 
     async def send_messages_stream(self) -> AsyncGenerator[ChatCompletionChunk, None]:
-        response: AsyncStream[ChatCompletionChunk] = (
-            await self.client.chat.completions.create(
-                model=self.model,
-                messages=self.messages,
-                tools=(
-                    [tool.to_dict() for tool in self._tools.values()]
-                    if self._tools
-                    else NOT_GIVEN
-                ),
-                tool_choice="auto" if self._tools else "none",
-                frequency_penalty=self.frequency_penalty,
-                max_tokens=self.max_tokens,
-                max_completion_tokens=self.max_completion_tokens,
-                temperature=self.temperature,
-                top_p=self.top_p,
-                stream=True,
-            )
+        thinking_mapping: dict[bool | None, Literal["enabled", "disabled", "auto"]] = {
+            True: "enabled",
+            False: "disabled",
+            None: "auto",
+        }
+        thinking_param: Thinking = {"type": thinking_mapping.get(self.thinking) or "auto"}
+        response: ChatCompletion | AsyncStream[ChatCompletionChunk] = await self.client.chat.completions.create(
+            model=self.model,
+            messages=self.messages,
+            tools=([tool.to_dict() for tool in self._tools.values()] if self._tools else None),
+            tool_choice="auto" if self._tools else "none",
+            frequency_penalty=self.frequency_penalty,
+            max_tokens=self.max_tokens,
+            max_completion_tokens=self.max_completion_tokens,
+            temperature=self.temperature,
+            top_p=self.top_p,
+            stream=True,
+            thinking=thinking_param,
         )
+        assert isinstance(response, AsyncStream)
         async for chunk in response:
             if chunk.choices[0].finish_reason == "stop":
                 break
             yield chunk
 
     async def get_response_stream(self) -> MessageContent | None:
-        response: AsyncGenerator[ChatCompletionChunk, None] = (
-            self.send_messages_stream()
-        )
+        response: AsyncGenerator[ChatCompletionChunk, None] = self.send_messages_stream()
         collected_chunks: list[ChatCompletionChunk] = []
         collected_messages: list[str] = []
+        collected_reasoning_messages: list[str] = []
         tool_calls_by_id: dict[int, ToolCallParam] = {}
 
         async for chunk in response:
@@ -171,11 +179,15 @@ class AsyncAgent:
                     if awaitable:
                         await awaitable
 
+            if chunk.choices[0].delta.reasoning_content:
+                collected_reasoning_messages.append(chunk.choices[0].delta.reasoning_content)
+                for resoning_stream_handler in self.stream_reasoning_handlers:
+                    awaitable = resoning_stream_handler(chunk.choices[0].delta.reasoning_content)
+                    if awaitable:
+                        await awaitable
+
             # 处理工具调用
-            if (
-                hasattr(chunk.choices[0].delta, "tool_calls")
-                and chunk.choices[0].delta.tool_calls
-            ):
+            if hasattr(chunk.choices[0].delta, "tool_calls") and chunk.choices[0].delta.tool_calls:
                 for tool_call in chunk.choices[0].delta.tool_calls:
                     call_id = tool_call.index
 
@@ -192,16 +204,10 @@ class AsyncAgent:
                         if not tool_call.function:
                             continue
                         function_data: Function = current_tool["function"]
-                        if (
-                            hasattr(tool_call.function, "name")
-                            and tool_call.function.name
-                        ):
+                        if hasattr(tool_call.function, "name") and tool_call.function.name:
                             function_data["name"] = tool_call.function.name
 
-                        if (
-                            hasattr(tool_call.function, "arguments")
-                            and tool_call.function.arguments
-                        ):
+                        if hasattr(tool_call.function, "arguments") and tool_call.function.arguments:
                             function_data["arguments"] += tool_call.function.arguments
 
                     if hasattr(tool_call, "id") and tool_call.id:
@@ -218,6 +224,14 @@ class AsyncAgent:
             "content": full_content,
             "time": collected_chunks[-1].created,
         }
+
+        if collected_reasoning_messages:
+            reasoning_content: str = "".join(collected_reasoning_messages)
+            for reasoning_handler in self.reasoning_handlers:
+                awaitable: Awaitable[None] | None = reasoning_handler(reasoning_content)
+                if awaitable:
+                    await awaitable
+
         for response_handler in self.response_handlers:
             awaitable: Awaitable[None] | None = response_handler(message)
             if awaitable:
@@ -286,7 +300,7 @@ class AsyncAgent:
     async def run(
         self: Self,
         content: MessageContent,
-        user_name: str | NotGiven = NOT_GIVEN,
+        user_name: str | None = None,
         stream: bool = False,
     ) -> str | None:
         if self.message_expire_time:
@@ -418,35 +432,37 @@ class AsyncAgent:
         self._mcp_clients.clear()
         logger.info(f"MCP clients cleaned up")
 
-    def add_response_handler(
-        self, handler: Callable[[AssistantMessageParam], Awaitable[None] | None]
-    ) -> None:
+    def add_response_handler(self, handler: Callable[[AssistantMessageParam], Awaitable[None] | None]) -> None:
         """添加一个响应处理函数，当收到模型响应时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型输出的消息，以字典形式返回"""
         self.response_handlers.append(handler)
 
-    def remove_response_handler(
-        self, handler: Callable[[AssistantMessageParam], Awaitable[None] | None]
-    ) -> None:
+    def remove_response_handler(self, handler: Callable[[AssistantMessageParam], Awaitable[None] | None]) -> None:
         self.response_handlers.remove(handler)
 
-    def add_stream_chunk_handler(
-        self, handler: Callable[[str], Awaitable[None] | None]
-    ) -> None:
+    def add_stream_chunk_handler(self, handler: Callable[[str], Awaitable[None] | None]) -> None:
         """添加一个流式响应处理函数，当收到模型响应时，会调用该函数。只有在stream=True时，才会生效。函数的第一个（且是唯一一个）参数应当是模型输出的单个词语，以字符串形式返回"""
         self.stream_chunk_handlers.append(handler)
 
-    def remove_stream_chunk_handler(
-        self, handler: Callable[[str], Awaitable[None] | None]
-    ) -> None:
+    def remove_stream_chunk_handler(self, handler: Callable[[str], Awaitable[None] | None]) -> None:
         self.stream_chunk_handlers.remove(handler)
 
-    def add_tool_call_handler(
-        self, handler: Callable[[ToolCallParam], Awaitable[None] | None]
-    ) -> None:
+    def add_tool_call_handler(self, handler: Callable[[ToolCallParam], Awaitable[None] | None]) -> None:
         """添加一个工具调用处理函数，当收到模型调用请求时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型的工具调用，以字典形式返回"""
         self.tool_call_handlers.append(handler)
 
-    def remove_tool_call_handler(
-        self, handler: Callable[[ToolCallParam], Awaitable[None] | None]
-    ) -> None:
+    def remove_tool_call_handler(self, handler: Callable[[ToolCallParam], Awaitable[None] | None]) -> None:
         self.tool_call_handlers.remove(handler)
+
+    def add_reasoning_handler(self, handler: Callable[[str], Awaitable[None] | None]) -> None:
+        """添加一个推理处理函数，当收到模型推理请求时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型的推理请求，以字符串形式返回"""
+        self.reasoning_handlers.append(handler)
+
+    def remove_reasoning_handler(self, handler: Callable[[str], Awaitable[None] | None]) -> None:
+        self.reasoning_handlers.remove(handler)
+
+    def add_stream_reasoning_handler(self, handler: Callable[[str], Awaitable[None] | None]) -> None:
+        """添加一个流式推理处理函数，当收到模型推理请求时，会调用该函数。只有在stream=True时，才会生效。函数的第一个（且是唯一一个）参数应当是模型的推理请求，以字符串形式返回"""
+        self.stream_reasoning_handlers.append(handler)
+
+    def remove_stream_reasoning_handler(self, handler: Callable[[str], Awaitable[None] | None]) -> None:
+        self.stream_reasoning_handlers.remove(handler)
