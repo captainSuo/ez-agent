@@ -322,6 +322,7 @@ class Agent:
         _agent.top_p = self.top_p
         _agent.max_tokens = self.max_tokens
         _agent.max_completion_tokens = self.max_completion_tokens
+        _agent.thinking = self.thinking
         _agent.message_expire_time = self.message_expire_time
 
         _agent.messages = deepcopy(self.messages)
