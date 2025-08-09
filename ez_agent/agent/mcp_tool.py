@@ -1,5 +1,7 @@
-from collections.abc import Awaitable
 import logging
+import httpx
+from anyio import ClosedResourceError
+from collections.abc import Awaitable
 from .base_tool import Tool
 from typing import Any
 from contextlib import AsyncExitStack
@@ -20,12 +22,15 @@ class MCPClient:
     async def connect_to_server(self, params: dict[str, Any] | None) -> None:
         if not params:
             return
-        if "url" in params:
-            await self.connect_to_sse_server(**params)
-        elif "command" in params:
-            await self.connect_to_stdio_server(**params)
-        else:
-            raise ValueError(f"Invalid parameters: {params}")
+        try:
+            if "url" in params:
+                await self.connect_to_sse_server(**params)
+            elif "command" in params:
+                await self.connect_to_stdio_server(**params)
+            else:
+                raise ValueError(f"Invalid parameters: {params}")
+        except (httpx.ConnectTimeout, httpx.ConnectError) as e:
+            logger.warning(f"Failed to connect to MCP server: {e}, certain tools will be disabled")
 
     async def connect_to_stdio_server(
         self,
@@ -48,16 +53,10 @@ class MCPClient:
             "cwd": cwd,
             "encoding": encoding,
         }
-        _server_params = StdioServerParameters(
-            command=command, args=args, env=env, cwd=cwd, encoding=encoding
-        )
-        stdio_transport = await self.exit_stack.enter_async_context(
-            stdio_client(_server_params)
-        )
+        _server_params = StdioServerParameters(command=command, args=args, env=env, cwd=cwd, encoding=encoding)
+        stdio_transport = await self.exit_stack.enter_async_context(stdio_client(_server_params))
         self.read, self.write = stdio_transport
-        self.session = await self.exit_stack.enter_async_context(
-            ClientSession(self.read, self.write)
-        )
+        self.session = await self.exit_stack.enter_async_context(ClientSession(self.read, self.write))
 
         if not self.session:
             raise ValueError("Failed to create session")
@@ -68,9 +67,7 @@ class MCPClient:
         response = await self.session.list_tools()
         tools = response.tools
         self.tool_list = [tool.name for tool in tools]
-        logger.info(
-            f"Successfully connected to MCP server with tools: {self.tool_list}"
-        )
+        logger.info(f"Successfully connected to MCP server with tools: {self.tool_list}")
 
     async def connect_to_sse_server(
         self,
@@ -100,9 +97,7 @@ class MCPClient:
             )
         )
         self.read, self.write = sse_transport
-        self.session = await self.exit_stack.enter_async_context(
-            ClientSession(self.read, self.write)
-        )
+        self.session = await self.exit_stack.enter_async_context(ClientSession(self.read, self.write))
 
         if not self.session:
             raise ValueError("Failed to create session")
@@ -112,9 +107,7 @@ class MCPClient:
         response = await self.session.list_tools()
         tools = response.tools
         self.tool_list = [tool.name for tool in tools]
-        logger.info(
-            f"Successfully connected to MCP server with tools: {self.tool_list}"
-        )
+        logger.info(f"Successfully connected to MCP server with tools: {self.tool_list}")
 
     @property
     def available_tools(self) -> list["MCPTool"]:
@@ -169,10 +162,7 @@ class MCPTool(Tool):
 
     def __repr__(self) -> str:
         return (
-            f"MCPTool("
-            f"name={self.name!r}, "
-            f"description={self.description!r}, "
-            f"parameters={self.parameters!r})"
+            f"MCPTool(" f"name={self.name!r}, " f"description={self.description!r}, " f"parameters={self.parameters!r})"
         )
 
     def __call__(self, *args, **kwargs) -> Awaitable[str]:
@@ -180,22 +170,16 @@ class MCPTool(Tool):
 
     async def _call(self, *args, **arguments) -> str:
         if args:
-            raise ValueError(
-                "MCPTool does not support positional arguments, try keyword arguments"
-            )
+            raise ValueError("MCPTool does not support positional arguments, try keyword arguments")
         if not self.client.session:
             raise ValueError("MCPClient not connected")
         try:
-            result = await self.client.session.call_tool(
-                name=self.name, arguments=arguments
-            )
-        except McpError:
+            result = await self.client.session.call_tool(name=self.name, arguments=arguments)
+        except (McpError, ClosedResourceError):
             try:
                 logging.warning("MCP request failed, trying to reconnect to MCP server")
                 await self.client.reconnect()
-                result = await self.client.session.call_tool(
-                    name=self.name, arguments=arguments
-                )
+                result = await self.client.session.call_tool(name=self.name, arguments=arguments)
             except McpError as e:
                 logger.exception("MCP request failed after reconnecting")
                 return f"MCP request failed after reconnecting: {e}"
