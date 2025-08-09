@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 class MCPClient:
     def __init__(self) -> None:
         self.session: ClientSession | None = None
+        self.tool_list: list[str] = []
         self._server_params: dict[str, Any] | None = None
         self.exit_stack = AsyncExitStack()
 
@@ -29,8 +30,21 @@ class MCPClient:
                 await self.connect_to_stdio_server(**params)
             else:
                 raise ValueError(f"Invalid parameters: {params}")
+        except BaseExceptionGroup as eg:
+            # 处理异常组中的连接错误
+            handled = False
+            for exc in eg.exceptions:
+                if isinstance(exc, (httpx.ConnectTimeout, httpx.ConnectError)):
+                    logger.warning(f"Failed to connect to MCP server: {exc}, certain tools will be disabled")
+                    handled = True
+
+            # 如果还有其他未处理的异常，重新抛出
+            if not handled:
+                raise
         except (httpx.ConnectTimeout, httpx.ConnectError) as e:
             logger.warning(f"Failed to connect to MCP server: {e}, certain tools will be disabled")
+        except RuntimeError as e:
+            raise
 
     async def connect_to_stdio_server(
         self,
@@ -175,18 +189,19 @@ class MCPTool(Tool):
             raise ValueError("MCPClient not connected")
         try:
             result = await self.client.session.call_tool(name=self.name, arguments=arguments)
-        except (McpError, ClosedResourceError):
+            return str(result.content)
+        except ClosedResourceError as e:
             try:
                 logging.warning("MCP request failed, trying to reconnect to MCP server")
                 await self.client.reconnect()
                 result = await self.client.session.call_tool(name=self.name, arguments=arguments)
-            except McpError as e:
+                return str(result.content)
+            except Exception as e:
                 logger.exception("MCP request failed after reconnecting")
                 return f"MCP request failed after reconnecting: {e}"
         except Exception as e:
             logger.exception(f"Error when calling tool: {e}")
             return f"Error when calling tool: {e}"
-        return str(result.content)
 
 
 class FoldableMCPTool(MCPTool):
