@@ -309,26 +309,15 @@ class Agent:
     def copy(self) -> Self:
         """深拷贝，用于多线程安全"""
         _agent = Agent.__new__(self.__class__)
-        _agent._tools = self._tools
-        _agent._client = self._client
-        _agent._api_key = self._api_key
-        _agent._base_url = self._base_url
-
-        _agent.model = self.model
-        _agent.instructions = self.instructions
-
-        _agent.frequency_penalty = self.frequency_penalty
-        _agent.temperature = self.temperature
-        _agent.top_p = self.top_p
-        _agent.max_tokens = self.max_tokens
-        _agent.max_completion_tokens = self.max_completion_tokens
-        _agent.thinking = self.thinking
-        _agent.message_expire_time = self.message_expire_time
+        _agent.__dict__ = deepcopy(self.__dict__)
 
         _agent.messages = deepcopy(self.messages)
-        _agent.response_handlers = self.response_handlers.copy()
-        _agent.stream_chunk_handlers = self.stream_chunk_handlers.copy()
+        _agent._tools = self._tools.copy() if self._tools else None
         _agent.tool_call_handlers = self.tool_call_handlers.copy()
+        _agent.response_handlers = self.response_handlers.copy()
+        _agent.reasoning_handlers = self.reasoning_handlers.copy()
+        _agent.stream_chunk_handlers = self.stream_chunk_handlers.copy()
+        _agent.stream_reasoning_handlers = self.stream_reasoning_handlers.copy()
         return _agent
 
     @contextmanager
