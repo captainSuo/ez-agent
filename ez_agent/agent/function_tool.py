@@ -54,10 +54,7 @@ class BaseFunctionTool(Tool, ABC):
                                 item_schema = {"type": "number"}
                             elif item_type == bool:
                                 item_schema = {"type": "boolean"}
-                            elif (
-                                item_type == dict
-                                or getattr(item_type, "__origin__", None) == dict
-                            ):
+                            elif item_type == dict or getattr(item_type, "__origin__", None) == dict:
                                 item_schema = {"type": "object"}
 
                             # 如果项类型已确定，添加 items 字段
@@ -127,10 +124,8 @@ class FunctionTool(BaseFunctionTool):
             return self._func(obj, *args, **kwds)
 
         tool.name = self.name
-        tool.parameters = self.parameters
-        tool.parameters["properties"] = dict(
-            list(self.parameters["properties"].items())[1:]  # type: ignore
-        )
+        tool.parameters = self.parameters.copy()
+        tool.parameters["properties"] = dict(list(self.parameters["properties"].items())[1:])  # type: ignore
         tool.parameters["required"] = self.parameters["required"][1:]  # type: ignore
         tool.description = self.description
         return tool
@@ -161,10 +156,8 @@ class AsyncFunctionTool(BaseFunctionTool):
             return await self._func(obj, *args, **kwds)
 
         tool.name = self.name
-        tool.parameters = self.parameters
-        tool.parameters["properties"] = dict(
-            list(self.parameters["properties"].items())[1:]  # type: ignore
-        )
+        tool.parameters = self.parameters.copy()
+        tool.parameters["properties"] = dict(list(self.parameters["properties"].items())[1:])  # type: ignore
         tool.parameters["required"] = self.parameters["required"][1:]  # type: ignore
         tool.description = self.description
         return tool
