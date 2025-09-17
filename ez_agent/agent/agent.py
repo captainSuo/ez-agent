@@ -1,3 +1,6 @@
+# 已停止维护
+from deprecated import deprecated
+
 import time
 from typing import Self, cast, Literal
 from collections.abc import Callable, Generator
@@ -18,6 +21,7 @@ from ez_agent.types import (
 from .base_tool import Tool
 
 
+@deprecated(reason="Agent is deprecated, please use AsyncAgent instead", version="0.2.0a1", category=DeprecationWarning)
 class Agent:
 
     def __init__(

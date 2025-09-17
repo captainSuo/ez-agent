@@ -6,6 +6,7 @@ description = "基于 volcengine-python-sdk 的简单 AI Agent 框架"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "deprecated>=1.2.18",
     "mcp[cli]>=1.9.2",
     "pillow>=11.3.0",
     "pyautogui>=0.9.54",
