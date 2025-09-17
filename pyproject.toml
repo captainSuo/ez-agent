@@ -1,7 +1,7 @@
 [project]
 name = "ez_agent"
 authors = [{ name = "captainSuo", email = "captainsuo@outlook.com" }]
-version = "0.2.0a1"
+version = "0.2.0a2"
 description = "基于 volcengine-python-sdk 的简单 AI Agent 框架"
 readme = "README.md"
 requires-python = ">=3.13"
