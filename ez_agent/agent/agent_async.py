@@ -263,7 +263,7 @@ class AsyncAgent:
 
             message: ToolMessageParam = {
                 "role": "tool",
-                "content": str(result),
+                "content": result,
                 "tool_call_id": tool_call["id"],
             }
             if time:
@@ -422,6 +422,18 @@ class AsyncAgent:
             await mcp_client.cleanup()
         self._mcp_clients.clear()
         logger.info(f"MCP clients cleaned up")
+
+    def add_tool(self, tool: Tool) -> None:
+        """添加工具"""
+        if self._tools:
+            self._tools[tool.name] = tool
+        else:
+            self._tools = {tool.name: tool}
+
+    def remove_tool(self, tool: Tool) -> None:
+        """移除工具"""
+        if self._tools and tool.name in self._tools:
+            del self._tools[tool.name]
 
     def add_response_handler(self, handler: Callable[[AssistantMessageParam], Awaitable[None] | None]) -> None:
         """添加一个响应处理函数，当收到模型响应时，会调用该函数。函数的第一个（且是唯一一个）参数应当是模型输出的消息，以字典形式返回"""

@@ -11,6 +11,7 @@ __all__ = [
     "FunctionTool",
     "MCPClient",
     "MCPTool",
+    "GUIAgent",
 ]
 
 
@@ -24,3 +25,4 @@ from .agent.function_tool import (
 )
 from .agent.mcp_tool import MCPClient, MCPTool, FoldableMCPTool
 from .agent.base_tool import Tool
+from .gui_agent import GUIAgent
