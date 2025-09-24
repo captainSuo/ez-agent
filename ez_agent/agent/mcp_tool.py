@@ -5,7 +5,7 @@ from collections.abc import Awaitable
 from .base_tool import Tool
 from typing import Any
 from contextlib import AsyncExitStack
-from mcp import ClientSession, StdioServerParameters, McpError
+from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.sse import sse_client
 from volcenginesdkarkruntime.types.chat import ChatCompletionToolParam
