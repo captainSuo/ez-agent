@@ -4,7 +4,7 @@ from rich import print
 from PIL import Image
 
 from ez_agent.agent.base_tool import Tool
-from ..agent.agent_async import AsyncAgent
+from ..agent.agent_async import Agent
 from ..agent.function_tool import AsyncFunctionTool
 from .screenshot import take_screenshot, encode_image
 from .action_parser import (
@@ -17,7 +17,7 @@ from .action_parser import (
 printing_reasoning = False
 
 
-class GUIAgent(AsyncAgent):
+class GUIAgent(Agent):
     def __init__(
         self: Self,
         model: str,
@@ -83,7 +83,7 @@ class GUIAgent(AsyncAgent):
         ]
         return content  # type: ignore
 
-    async def start(self):
+    async def astart(self):
         try:
             while True:
                 input_str = input(">>> ")
