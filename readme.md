@@ -6,6 +6,8 @@
 <a href="https://github.com/captainsuo/ez-agent"><img src="https://img.shields.io/pypi/pyversions/ez-agent" /></a>
 </p>
 
+## ⚠ 此说明可能已经过时
+
 ## 主要特性:
 
 - 支持 OpenAI, DeepSeek 等公司的大语言模型
@@ -164,8 +166,8 @@ custom_agent = Agent(
 #### 使用 MCP 工具
 
 ```python
-from ez_agent import AsyncAgent
-agent = AsyncAgent(...) # 创建异步Agent，方法与同步Agent相同
+from ez_agent import Agent
+agent = Agent(...) # 创建异步Agent，方法与同步Agent相同
 agent.load_mcp_config("mcp_config.json")
 ```
 
