@@ -2,7 +2,7 @@ __author__ = "captainSuo"
 __version__ = "0.2.0a2"
 __all__ = [
     "Agent",
-    "AsyncAgent",
+    "Agent",
     "AsyncFunctionTool",
     "Tool",
     "FoldableAsyncFunctionTool",
@@ -15,8 +15,7 @@ __all__ = [
 ]
 
 
-from .agent.agent import Agent
-from .agent.agent_async import AsyncAgent
+from .agent.agent_async import Agent
 from .agent.function_tool import (
     FunctionTool,
     FoldableFunctionTool,
