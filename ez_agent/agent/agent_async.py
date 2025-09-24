@@ -1,18 +1,22 @@
+import asyncio
 import logging, time
 from typing import Literal, Self, cast
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from copy import deepcopy
+from rich import print as rich_print
 from contextlib import asynccontextmanager
 from volcenginesdkarkruntime import AsyncArk
 from volcenginesdkarkruntime._streaming import AsyncStream
-from volcenginesdkarkruntime.types.chat.completion_create_params import Thinking
+from volcenginesdkarkruntime.types.chat.completion_create_params import ThinkingParam
 from volcenginesdkarkruntime.types.chat.chat_completion import ChatCompletion
 from volcenginesdkarkruntime.types.chat.chat_completion_chunk import ChatCompletionChunk
 from volcenginesdkarkruntime.types.chat.chat_completion_message_tool_call_param import (
     Function,
 )
+
+from ez_agent.agent.function_tool import FunctionTool
 from .base_tool import Tool
-from .mcp_tool import MCPClient
+from .mcp_tool import MCPClient, MCPTool
 from ..types import (
     JSONType,
     AssistantMessageParam,
@@ -26,7 +30,7 @@ from ..types import (
 logger = logging.getLogger(__name__)
 
 
-class AsyncAgent:
+class Agent:
 
     def __init__(
         self: Self,
@@ -40,7 +44,7 @@ class AsyncAgent:
         top_p: float | None = None,
         max_tokens: int | None = None,
         max_completion_tokens: int | None = None,
-        thinking: bool | None = None,
+        thinking: bool | None | Literal["enabled", "disabled", "auto"] = True,
         message_expire_time: int | None = None,
     ) -> None:
         self._tools: dict[str, Tool] | None = {tool.name: tool for tool in tools} if tools else None
@@ -64,7 +68,7 @@ class AsyncAgent:
         self.top_p: float | None = top_p
         self.max_tokens: int | None = max_tokens
         self.max_completion_tokens: int | None = max_completion_tokens
-        self.thinking: bool | None = thinking
+        self.thinking: bool | None | str = thinking
 
         self.message_expire_time: int | None = message_expire_time
 
@@ -92,12 +96,14 @@ class AsyncAgent:
         return self._tools.get(name) if self._tools else None
 
     async def send_messages(self) -> AssistantMessageParam:
-        thinking_mapping: dict[bool | None, Literal["enabled", "disabled", "auto"]] = {
-            True: "enabled",
-            False: "disabled",
-            None: "auto",
-        }
-        thinking_param: Thinking = {"type": thinking_mapping.get(self.thinking) or "auto"}
+        thinking_param: ThinkingParam = None
+        match self.thinking:
+            case True | "enabled":
+                thinking_param = {"type": "enabled"}
+            case False | "disabled":
+                thinking_param = {"type": "disabled"}
+            case "auto":
+                thinking_param = {"type": "auto"}
         response: ChatCompletion | AsyncStream = await self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,
@@ -138,12 +144,14 @@ class AsyncAgent:
         return response.get("content")  # type: ignore
 
     async def send_messages_stream(self) -> AsyncGenerator[ChatCompletionChunk, None]:
-        thinking_mapping: dict[bool | None, Literal["enabled", "disabled", "auto"]] = {
-            True: "enabled",
-            False: "disabled",
-            None: "auto",
-        }
-        thinking_param: Thinking = {"type": thinking_mapping.get(self.thinking) or "auto"}
+        thinking_param: ThinkingParam = None
+        match self.thinking:
+            case True | "enabled":
+                thinking_param = {"type": "enabled"}
+            case False | "disabled":
+                thinking_param = {"type": "disabled"}
+            case "auto":
+                thinking_param = {"type": "auto"}
         response: ChatCompletion | AsyncStream[ChatCompletionChunk] = await self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,
@@ -335,7 +343,7 @@ class AsyncAgent:
 
     def copy(self) -> Self:
         """深拷贝，用于多线程安全"""
-        _agent = AsyncAgent.__new__(self.__class__)
+        _agent = Agent.__new__(self.__class__)
         _agent.__dict__ = self.__dict__.copy()
 
         _agent.messages = deepcopy(self.messages)
@@ -356,7 +364,7 @@ class AsyncAgent:
         """
         if self.message_expire_time:
             self.clear_msg_by_time(self.message_expire_time)
-        _agent: "AsyncAgent" = self.copy()
+        _agent: "Agent" = self.copy()
         yield _agent
         if merge_messages:
             added_messages: list[MessageParam] = _agent.messages
@@ -469,3 +477,131 @@ class AsyncAgent:
 
     def remove_stream_reasoning_handler(self, handler: Callable[[str], Awaitable[None] | None]) -> None:
         self.stream_reasoning_handlers.remove(handler)
+
+    def default_config(self) -> Self:
+        """设置默认配置"""
+
+        printing_reasoning = False
+
+        def handle_stream_response(response) -> None:
+            nonlocal printing_reasoning
+            if printing_reasoning:
+                rich_print("[rgb(150,150,150)]\n...done thinking.\n[/]")
+                printing_reasoning = False
+            print(response, end="", flush=True)
+
+        def handle_toolcall(toolcall) -> None:
+            rich_print(
+                f"\n[rgb(150,150,150)]正在调用工具：{toolcall["function"]["name"]}[/], 参数：{toolcall["function"]["arguments"]}"
+            )
+
+        def handle_stream_reasoning(reasoning) -> None:
+            nonlocal printing_reasoning
+            if not printing_reasoning:
+                rich_print(f"[rgb(150,150,150)]ThinkingParam...[/]")
+                printing_reasoning = True
+            rich_print(f"[rgb(150,150,150)]{reasoning}[/]", end="", flush=True)
+
+        self.add_stream_chunk_handler(handle_stream_response)
+        self.add_tool_call_handler(handle_toolcall)
+        self.add_stream_reasoning_handler(handle_stream_reasoning)
+
+        return self
+
+    async def astart(self) -> None:
+        self.default_config()
+
+        def cut_str(input_str: str, max_len: int) -> str:
+            return (
+                f"{input_str[:max_len-3]}..."
+                if len(input_str) > max_len
+                else input_str + " " * (max_len - len(input_str))
+            )
+
+        while True:
+            rich_print("[blue]>>> [/]", end="")
+            user_input = input().split(" ")
+            match user_input[0]:
+                case "/exit" | "/quit":
+                    break
+                case "/info":
+                    rich_print(
+                        f"[bold green underline]Info for assistant[/]\n"
+                        f"[bold blue]Model[/]:\t\t{self.model}\n"
+                        f"[bold blue]Prompt[/]:\t\t{self.instructions}\n"
+                        f"[bold blue]Base URL[/]:\t{self.base_url}\n"
+                        f"{len(self.tools)} tools activated"
+                    )
+                case "/tool":
+                    if len(user_input) <= 1:
+                        rich_print("[bold red]Error[/] Missing argument: [underline]'name'[/]")
+                    else:
+                        if self._tools:
+                            if user_input[1] in self._tools:
+                                rich_print(
+                                    f"[bold green]Info for tool[/] [bold green underline]'{user_input[1]}'[/]\n"
+                                    f"[bold blue]Description[/]: {self._tools[user_input[1]].description}\n"
+                                    f"[bold blue]Parameters[/]:\n"
+                                    f"[blue]\tName\t\tType\t\tDescription[/]"
+                                )
+                                for arg, info in self._tools[user_input[1]].parameters["properties"].items():  # type: ignore
+
+                                    rich_print(f"\t{cut_str(arg, 10)}\t{info["type"]}\t\t{info["description"]}")
+
+                            else:
+                                rich_print(f"[bold red]Error[/] Tool [underline]'{user_input[1]}'[/] not found")
+                case "/tools":
+                    if self._tools:
+                        rich_print("[bold underline green]Available tools[/]")
+                        rich_print(f"[bold blue]Name\t\tDescription\t\t\tType[/]")
+                        for tool_name, tool in self._tools.items():
+                            tool_type: str = "Other"
+                            if isinstance(tool, FunctionTool):
+                                tool_type = "Function Tool"
+                            elif isinstance(tool, MCPTool):
+                                tool_type = "MCP Tool"
+                            print(f"{cut_str(tool_name, 15)}\t{cut_str(tool.description, 30)}\t{tool_type}")
+                    else:
+                        print("No tools available.")
+                case "/help":
+                    rich_print(
+                        "[bold underline green]Available commands[/]\n"
+                        "[bold blue]Command\t\t\tDescription\n[/]"
+                        "/exit\t\t\tExit the program.\n"
+                        "/help\t\t\tShow this help message.\n"
+                        "/info\t\t\tShow information about the agent.\n"
+                        "/tool <name>\t\tShow information about a specific tool.\n"
+                        "/tools\t\t\tList available tools."
+                    )
+                case _:
+                    await self.run(user_input[0], stream=True)
+            print()
+
+    def start(self, func: Callable | None = None) -> None:
+        """
+        启动 Agent，可以自定义启动函数
+
+        Args:
+            func (Callable, optional): 启动函数. Defaults to None.
+        """
+
+        async def main():
+            logging.info("Starting agent...")
+            try:
+                try:
+                    if func:
+                        await func()
+                    else:
+                        await self.astart()
+                except (EOFError, asyncio.CancelledError):
+                    pass
+                finally:
+                    await self.cleanup()
+            finally:
+                logger.info("Stopping agent...")
+                await asyncio.sleep(0.1)  # 防止程序提前退出
+
+        try:
+            asyncio.run(main())
+        except KeyboardInterrupt:
+            pass
