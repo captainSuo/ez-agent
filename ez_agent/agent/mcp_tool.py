@@ -139,7 +139,7 @@ class MCPClient:
     async def cleanup(self):
         """Clean up resources"""
         await self.exit_stack.aclose()
-        logger.info("MCPClient cleaned up")
+        logger.info(f"MCP client cleaned up, related tools {self.tool_list}")
 
 
 class MCPTool(Tool):

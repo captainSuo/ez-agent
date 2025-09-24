@@ -429,7 +429,7 @@ class Agent:
         for mcp_client in self._mcp_clients:
             await mcp_client.cleanup()
         self._mcp_clients.clear()
-        logger.info(f"MCP clients cleaned up")
+        logger.info(f"All MCP clients cleaned up")
 
     def add_tool(self, tool: Tool) -> None:
         """添加工具"""
@@ -596,9 +596,9 @@ class Agent:
                 except (EOFError, asyncio.CancelledError):
                     pass
                 finally:
+                    logger.info("Stopping agent...")
                     await self.cleanup()
             finally:
-                logger.info("Stopping agent...")
                 await asyncio.sleep(0.1)  # 防止程序提前退出
 
         try:
