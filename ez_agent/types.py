@@ -11,9 +11,7 @@ from volcenginesdkarkruntime.types.chat import (
 )
 
 
-JSONType: TypeAlias = (
-    Mapping[str, "JSONType"] | list["JSONType"] | str | int | float | bool | None
-)
+JSONType: TypeAlias = Mapping[str, "JSONType"] | list["JSONType"] | str | int | float | bool | None
 
 
 class SystemMessageParam(ChatCompletionSystemMessageParam):
@@ -37,11 +35,7 @@ class FunctionMessageParam(ChatCompletionFunctionMessageParam):
 
 
 MessageParam: TypeAlias = (
-    SystemMessageParam
-    | UserMessageParam
-    | AssistantMessageParam
-    | ToolMessageParam
-    | FunctionMessageParam
+    SystemMessageParam | UserMessageParam | AssistantMessageParam | ToolMessageParam | FunctionMessageParam
 )
 
 ToolCallParam: TypeAlias = ChatCompletionMessageToolCallParam
