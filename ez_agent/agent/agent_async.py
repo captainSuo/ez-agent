@@ -7,7 +7,7 @@ from rich import print as rich_print
 from contextlib import asynccontextmanager
 from volcenginesdkarkruntime import AsyncArk
 from volcenginesdkarkruntime._streaming import AsyncStream
-from volcenginesdkarkruntime.types.chat.completion_create_params import ThinkingParam
+from volcenginesdkarkruntime.types.chat.completion_create_params import Thinking
 from volcenginesdkarkruntime.types.chat.chat_completion import ChatCompletion
 from volcenginesdkarkruntime.types.chat.chat_completion_chunk import ChatCompletionChunk
 from volcenginesdkarkruntime.types.chat.chat_completion_message_tool_call_param import (
@@ -46,6 +46,7 @@ class Agent:
         max_completion_tokens: int | None = None,
         thinking: bool | None | Literal["enabled", "disabled", "auto"] = True,
         message_expire_time: int | None = None,
+        is_generating: bool = True,
     ) -> None:
         self._tools: dict[str, Tool] | None = {tool.name: tool for tool in tools} if tools else None
         self._client: AsyncArk = AsyncArk(api_key=api_key, base_url=base_url)
@@ -71,6 +72,7 @@ class Agent:
         self.thinking: bool | None | str = thinking
 
         self.message_expire_time: int | None = message_expire_time
+        self.is_generating: bool = is_generating
 
     @property
     def client(self) -> AsyncArk:
@@ -96,7 +98,7 @@ class Agent:
         return self._tools.get(name) if self._tools else None
 
     async def send_messages(self) -> AssistantMessageParam:
-        thinking_param: ThinkingParam = None
+        thinking_param: Thinking | None = None
         match self.thinking:
             case True | "enabled":
                 thinking_param = {"type": "enabled"}
@@ -144,7 +146,7 @@ class Agent:
         return response.get("content")  # type: ignore
 
     async def send_messages_stream(self) -> AsyncGenerator[ChatCompletionChunk, None]:
-        thinking_param: ThinkingParam = None
+        thinking_param: Thinking | None = None
         match self.thinking:
             case True | "enabled":
                 thinking_param = {"type": "enabled"}
@@ -169,9 +171,15 @@ class Agent:
         async for chunk in response:
             if chunk.choices[0].finish_reason == "stop":
                 break
+            if not self.is_generating:
+                break
             yield chunk
+        self.is_generating = True
 
     async def get_response_stream(self) -> MessageContent | None:
+        if not self.is_generating:
+            return None
+        
         response: AsyncGenerator[ChatCompletionChunk, None] = self.send_messages_stream()
         collected_chunks: list[ChatCompletionChunk] = []
         collected_messages: list[str] = []
@@ -507,6 +515,10 @@ class Agent:
         self.add_stream_reasoning_handler(handle_stream_reasoning)
 
         return self
+
+    def stop_generation(self) -> None:
+        """停止生成"""
+        self.is_generating = False
 
     async def astart(self) -> None:
         self.default_config()
