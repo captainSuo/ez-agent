@@ -113,7 +113,7 @@ wheels = [
 
 [[package]]
 name = "ez-agent"
-version = "0.2.0a3"
+version = "0.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "mcp", extra = ["cli"] },
