@@ -9,7 +9,7 @@ dependencies = [
     "mcp[cli]>=1.9.2",
     "pillow>=11.3.0",
     "pyautogui>=0.9.54",
-    "volcengine-python-sdk[ark]>=4.0.9",
+    "volcengine-python-sdk[ark]>=4.0.22",
 ]
 classifiers = [
     "Programming Language :: Python :: 3.13",
