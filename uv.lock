@@ -117,18 +117,23 @@ version = "0.2.0a3"
 source = { virtual = "." }
 dependencies = [
     { name = "mcp", extra = ["cli"] },
+    { name = "volcengine-python-sdk", extra = ["ark"] },
+]
+
+[package.optional-dependencies]
+gui = [
     { name = "pillow" },
     { name = "pyautogui" },
-    { name = "volcengine-python-sdk", extra = ["ark"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.9.2" },
-    { name = "pillow", specifier = ">=11.3.0" },
-    { name = "pyautogui", specifier = ">=0.9.54" },
-    { name = "volcengine-python-sdk", extras = ["ark"], specifier = ">=4.0.9" },
+    { name = "pillow", marker = "extra == 'gui'", specifier = ">=11.3.0" },
+    { name = "pyautogui", marker = "extra == 'gui'", specifier = ">=0.9.54" },
+    { name = "volcengine-python-sdk", extras = ["ark"], specifier = ">=4.0.22" },
 ]
+provides-extras = ["gui"]
 
 [[package]]
 name = "h11"
@@ -643,7 +648,7 @@ wheels = [
 
 [[package]]
 name = "volcengine-python-sdk"
-version = "4.0.9"
+version = "4.0.22"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -651,7 +656,10 @@ dependencies = [
     { name = "six" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/70/68/365aa02f080eab469b78948b46c810e630672895dcdbff9fde1d2ec0bf95/volcengine-python-sdk-4.0.9.tar.gz", hash = "sha256:1cf061b7f2bda62258c13549befc1da7072de43f2c7b39ca64da279a7f424113", size = 6310776, upload-time = "2025-08-01T10:28:26.983Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fb/87/e378a609f7adcd715d3541d6ce1bc1004e1c692ebba807010b8515fb4333/volcengine_python_sdk-4.0.22.tar.gz", hash = "sha256:8a084564019cb7b4b3c0c31f2c5d5ba5bbd3431cfc84ce00d9a4b61cc90b6929", size = 6040105, upload-time = "2025-09-25T12:13:20.354Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/5a/ea7452198cfdfd05803b15d192928fc729997208dcdecc3eddc6449a8058/volcengine_python_sdk-4.0.22-py2.py3-none-any.whl", hash = "sha256:bb9835ff73e5a13a84b69f0f72600d07fb40b0332c6a6ffb9a0531d979f7b616", size = 23338895, upload-time = "2025-09-25T12:13:16.248Z" },
+]
 
 [package.optional-dependencies]
 ark = [
