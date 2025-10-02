@@ -179,7 +179,7 @@ class Agent:
     async def get_response_stream(self) -> MessageContent | None:
         if not self.is_generating:
             return None
-        
+
         response: AsyncGenerator[ChatCompletionChunk, None] = self.send_messages_stream()
         collected_chunks: list[ChatCompletionChunk] = []
         collected_messages: list[str] = []
@@ -228,6 +228,9 @@ class Agent:
 
                     if hasattr(tool_call, "id") and tool_call.id:
                         current_tool["id"] = tool_call.id
+
+        if not collected_chunks:
+            return None
 
         # 转换工具调用字典为列表
         tool_calls: list[ToolCallParam] = []
