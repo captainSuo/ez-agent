@@ -1,8 +1,6 @@
 import asyncio
 from typing import Self
 from rich import print
-from PIL import Image
-
 from ez_agent.agent.base_tool import Tool
 from ..agent.agent_async import Agent
 from ..agent.function_tool import AsyncFunctionTool
@@ -11,6 +9,14 @@ from .action_parser import (
     parsing_response_to_pyautogui_code,
     parse_action_to_structure_output,
 )
+
+try:
+    from PIL import Image
+    import pyautogui
+
+    GUI_AVAILABLE = True
+except ImportError:
+    GUI_AVAILABLE = False
 
 # logging.basicConfig(level=logging.INFO)
 
@@ -33,6 +39,8 @@ class GUIAgent(Agent):
         thinking: bool | None = None,
         message_expire_time: int | None = None,
     ) -> None:
+        if not GUI_AVAILABLE:
+            raise ImportError("GUIAgent requires PIL and pyautogui")
         super().__init__(
             model,
             api_key,
@@ -66,7 +74,7 @@ class GUIAgent(Agent):
             wait() #Sleep for 5s and take a screenshot to check for any changes.
             finished(content='xxx') # Use escape characters \\', \\", and \\n in content part to ensure we can parse the content in normal python string format.
         """
-        image = Image.open("screenshot.png")
+        image = Image.open("screenshot.png")  # type: ignore
         original_image_width, original_image_height = image.size
         model_type = "doubao"
         parsed_dict = parse_action_to_structure_output(
