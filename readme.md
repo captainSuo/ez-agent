@@ -6,7 +6,7 @@
 <a href="https://github.com/captainsuo/ez-agent"><img src="https://img.shields.io/pypi/pyversions/ez-agent" /></a>
 </p>
 
-## ⚠ 此说明可能已经过时
+## ⚠ 注意：同步版本已停止维护，下文所述均为异步版本
 
 ## 主要特性:
 
@@ -55,6 +55,8 @@ agent = Agent(
 
 ### 添加响应处理
 
+监听模式设计，便于扩展。
+
 ```python
 agent.add_response_handler(lambda response: print(response.content))
 agent.add_tool_call_handler(lambda tool_call: print(f"工具调用: {tool_call.function.name}"))
@@ -63,17 +65,17 @@ agent.add_tool_call_handler(lambda tool_call: print(f"工具调用: {tool_call.f
 ### 发送请求:
 
 ```python
-response = agent.run("解释量子力学的基本原理")
+response = await agent.run("解释量子力学的基本原理")
 ```
 
 ### 流式输出
 
 ```python
 agent.add_stream_chunk_handler(lambda chunk: print(chunk))
-agent.run("解释量子力学的基本原理", stream=True)
+await agent.run("解释量子力学的基本原理", stream=True)
 ```
 
-### 完整示例
+### 一键启动交互命令行
 
 ```python
 # 通用助手
@@ -86,13 +88,17 @@ agent = Agent(
     base_url="https://api.openai.com/v1",
 )
 
-agent.add_stream_chunk_handler(lambda chunk: print(chunk, end="", flush=True))
-agent.add_tool_call_handler(lambda tool_call: print(f"工具调用: {tool_call["function"]["name"]}"))
+agent.start()
+```
 
-while True:
-    user_input = input(">>> ")
-    agent.run(user_input, stream=True)
-    print()
+### 自定义启动
+
+```python
+async def main_loop():
+    while True:
+        ...
+
+agent.start(main_loop)
 ```
 
 ### 预设的工具:
@@ -100,7 +106,6 @@ while True:
 - `get_time_tool` 获取当前时间
 - `python_script_tool` 执行 Python 脚本
 - `open_website_tool` 调用浏览器打开网站
-- `browse_web_tool` 浏览网页并获取内容
 
 #### 使用预设工具:
 
@@ -167,14 +172,14 @@ custom_agent = Agent(
 
 ```python
 from ez_agent import Agent
-agent = Agent(...) # 创建异步Agent，方法与同步Agent相同
-agent.load_mcp_config("mcp_config.json")
+agent = Agent(...)
+await agent.load_mcp_config("mcp_config.json")
 ```
 
 注意：`MCP`工具需手动释放资源
 
 ```python
-await agent.cleanup() # 须在异步环境中使用
+await agent.cleanup()
 ```
 
 ### 设置消息过期时间
