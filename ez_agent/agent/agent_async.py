@@ -14,7 +14,7 @@ from volcenginesdkarkruntime.types.chat.chat_completion_message_tool_call_param 
     Function,
 )
 
-from ez_agent.agent.function_tool import FunctionTool
+from .function_tool import FunctionTool
 from .base_tool import Tool
 from .mcp_tool import MCPClient, MCPTool
 from ..types import (
