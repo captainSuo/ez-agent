@@ -1,18 +1,19 @@
 import asyncio
 from typing import Self
 from rich import print
-from ez_agent.agent.base_tool import Tool
+from ..agent.base_tool import Tool
 from ..agent.agent_async import Agent
 from ..agent.function_tool import AsyncFunctionTool
-from .screenshot import take_screenshot, encode_image
-from .action_parser import (
-    parsing_response_to_pyautogui_code,
-    parse_action_to_structure_output,
-)
+
 
 try:
     from PIL import Image
     import pyautogui
+    from .screenshot import take_screenshot, encode_image
+    from .action_parser import (
+        parsing_response_to_pyautogui_code,
+        parse_action_to_structure_output,
+    )
 
     GUI_AVAILABLE = True
 except ImportError:
@@ -77,17 +78,17 @@ class GUIAgent(Agent):
         image = Image.open("screenshot.png")  # type: ignore
         original_image_width, original_image_height = image.size
         model_type = "doubao"
-        parsed_dict = parse_action_to_structure_output(
+        parsed_dict = parse_action_to_structure_output(  # type: ignore
             action_str, 1000, original_image_height, original_image_width, model_type
         )
-        parsed_pyautogui_code: str = parsing_response_to_pyautogui_code(
+        parsed_pyautogui_code: str = parsing_response_to_pyautogui_code(  # type: ignore
             parsed_dict, original_image_height, original_image_width
         )
         exec(parsed_pyautogui_code)
         await asyncio.sleep(0.5)
-        take_screenshot()
+        take_screenshot()  # type: ignore
         content = [
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encode_image()}"}},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encode_image()}"}},  # type: ignore
         ]
         return content  # type: ignore
 
@@ -95,10 +96,10 @@ class GUIAgent(Agent):
         try:
             while True:
                 input_str = input(">>> ")
-                take_screenshot()
+                take_screenshot()  # type: ignore
                 content = [
                     {"type": "text", "text": input_str},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encode_image()}"}},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encode_image()}"}},  # type: ignore
                 ]
                 await self.run(content, stream=True)
                 self.save_messages("messages.json")
