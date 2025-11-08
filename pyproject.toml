@@ -1,11 +1,14 @@
 [project]
 name = "ez_agent"
 authors = [{ name = "captainSuo", email = "captainsuo@outlook.com" }]
-version = "0.2.2"
+version = "0.2.3"
 description = "基于 volcengine-python-sdk 的简单 AI Agent 框架"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = ["mcp[cli]>=1.9.2", "volcengine-python-sdk[ark]>=4.0.22"]
+dependencies = [
+    "mcp[cli]>=1.9.2",
+ "volcengine-python-sdk[ark]>=4.0.31",
+]
 classifiers = [
     "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
