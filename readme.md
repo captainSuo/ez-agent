@@ -1,4 +1,4 @@
-# 基于 openai sdk 的简单 AI Agent
+# 基于 volcengine-python-sdk 的简单 AI Agent
 
 <p align="center">
 <a href="https://pypi.org/project/ez-agent/"><img src="https://img.shields.io/pypi/v/ez-agent?color=blue&label=pypi"/></a>
@@ -10,7 +10,7 @@
 
 ## 主要特性:
 
-- 支持 OpenAI, DeepSeek 等公司的大语言模型
+- 使用 火山引擎 API
 - 内置多个工具函数(获取时间、网页搜索、执行 Python 代码等)
 - 支持流式输出
 - 可扩展的工具系统
@@ -75,7 +75,7 @@ agent.add_stream_chunk_handler(lambda chunk: print(chunk))
 await agent.run("解释量子力学的基本原理", stream=True)
 ```
 
-### 一键启动交互命令行
+### 一行启动交互命令行
 
 ```python
 # 通用助手
@@ -88,7 +88,7 @@ agent = Agent(
     base_url="https://api.openai.com/v1",
 )
 
-agent.start()
+agent.start() # 快捷启动交互命令行
 ```
 
 ### 自定义启动
